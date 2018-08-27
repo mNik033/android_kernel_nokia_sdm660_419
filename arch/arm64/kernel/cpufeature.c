@@ -1366,6 +1366,15 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 	},
 #endif /* CONFIG_ARM64_RAS_EXTN */
 	{
+		.desc = "CRC32 instructions",
+		.capability = ARM64_HAS_CRC32,
+		.type = ARM64_CPUCAP_SYSTEM_FEATURE,
+		.matches = has_cpuid_feature,
+		.sys_reg = SYS_ID_AA64ISAR0_EL1,
+		.field_pos = ID_AA64ISAR0_CRC32_SHIFT,
+		.min_field_value = 1,
+	},
+	{
 		.desc = "Data cache clean to the PoU not required for I/D coherence",
 		.capability = ARM64_HAS_CACHE_IDC,
 		.type = ARM64_CPUCAP_SYSTEM_FEATURE,
