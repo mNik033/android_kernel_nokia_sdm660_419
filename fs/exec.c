@@ -74,6 +74,17 @@
 
 int suid_dumpable = 0;
 
+#define ZYGOTE32_BIN "/system/bin/app_process32"
+#define ZYGOTE64_BIN "/system/bin/app_process64"
+static struct signal_struct *zygote32_sig;
+static struct signal_struct *zygote64_sig;
+
+bool task_is_zygote(struct task_struct *p)
+{
+	return p->signal == READ_ONCE(zygote32_sig) ||
+	       p->signal == READ_ONCE(zygote64_sig);
+}
+
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
 
@@ -1856,6 +1867,13 @@ static int __do_execve_file(int fd, struct filename *filename,
 	retval = exec_binprm(bprm);
 	if (retval < 0)
 		goto out;
+
+	if (filename && is_global_init(current->parent)) {
+		if (unlikely(!strcmp(filename->name, ZYGOTE32_BIN)))
+			WRITE_ONCE(zygote32_sig, current->signal);
+		else if (unlikely(!strcmp(filename->name, ZYGOTE64_BIN)))
+			WRITE_ONCE(zygote64_sig, current->signal);
+	}
 
 	/* execve succeeded */
 	current->fs->in_exec = 0;
