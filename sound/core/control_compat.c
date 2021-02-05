@@ -304,14 +304,11 @@ static int copy_ctl_value_to_user(void __user *userdata,
 static int ctl_elem_read_user(struct snd_card *card,
 			      void __user *userdata, void __user *valuep)
 {
-	struct snd_ctl_elem_value *data;
+	struct snd_ctl_elem_value data;
 	int err, type, count;
 
-	data = kzalloc(sizeof(*data), GFP_KERNEL);
-	if (data == NULL)
-		return -ENOMEM;
-
-	err = copy_ctl_value_from_user(card, data, userdata, valuep,
+	memset(&data, 0, sizeof(data));
+	err = copy_ctl_value_from_user(card, &data, userdata, valuep,
 				       &type, &count);
 	if (err < 0)
 		goto error;
@@ -320,28 +317,24 @@ static int ctl_elem_read_user(struct snd_card *card,
 	if (err < 0)
 		goto error;
 	down_read(&card->controls_rwsem);
-	err = snd_ctl_elem_read(card, data);
+	err = snd_ctl_elem_read(card, &data);
 	up_read(&card->controls_rwsem);
 	if (err < 0)
 		goto error;
-	err = copy_ctl_value_to_user(userdata, valuep, data, type, count);
+	err = copy_ctl_value_to_user(userdata, valuep, &data, type, count);
  error:
-	kfree(data);
 	return err;
 }
 
 static int ctl_elem_write_user(struct snd_ctl_file *file,
 			       void __user *userdata, void __user *valuep)
 {
-	struct snd_ctl_elem_value *data;
+	struct snd_ctl_elem_value data;
 	struct snd_card *card = file->card;
 	int err, type, count;
 
-	data = kzalloc(sizeof(*data), GFP_KERNEL);
-	if (data == NULL)
-		return -ENOMEM;
-
-	err = copy_ctl_value_from_user(card, data, userdata, valuep,
+	memset(&data, 0, sizeof(data));
+	err = copy_ctl_value_from_user(card, &data, userdata, valuep,
 				       &type, &count);
 	if (err < 0)
 		goto error;
@@ -350,13 +343,12 @@ static int ctl_elem_write_user(struct snd_ctl_file *file,
 	if (err < 0)
 		goto error;
 	down_write(&card->controls_rwsem);
-	err = snd_ctl_elem_write(card, file, data);
+	err = snd_ctl_elem_write(card, file, &data);
 	up_write(&card->controls_rwsem);
 	if (err < 0)
 		goto error;
-	err = copy_ctl_value_to_user(userdata, valuep, data, type, count);
+	err = copy_ctl_value_to_user(userdata, valuep, &data, type, count);
  error:
-	kfree(data);
 	return err;
 }
 
@@ -391,48 +383,44 @@ static int snd_ctl_elem_add_compat(struct snd_ctl_file *file,
 				   struct snd_ctl_elem_info32 __user *data32,
 				   int replace)
 {
-	struct snd_ctl_elem_info *data;
+	struct snd_ctl_elem_info data;
 	int err;
 
-	data = kzalloc(sizeof(*data), GFP_KERNEL);
-	if (! data)
-		return -ENOMEM;
-
+	memset(&data, 0, sizeof(data));
 	err = -EFAULT;
 	/* id, type, access, count */ \
-	if (copy_from_user(&data->id, &data32->id, sizeof(data->id)) ||
-	    copy_from_user(&data->type, &data32->type, 3 * sizeof(u32)))
+	if (copy_from_user(&data.id, &data32->id, sizeof(data.id)) ||
+	    copy_from_user(&data.type, &data32->type, 3 * sizeof(u32)))
 		goto error;
-	if (get_user(data->owner, &data32->owner))
+	if (get_user(data.owner, &data32->owner))
 		goto error;
-	switch (data->type) {
+	switch (data.type) {
 	case SNDRV_CTL_ELEM_TYPE_BOOLEAN:
 	case SNDRV_CTL_ELEM_TYPE_INTEGER:
-		if (get_user(data->value.integer.min, &data32->value.integer.min) ||
-		    get_user(data->value.integer.max, &data32->value.integer.max) ||
-		    get_user(data->value.integer.step, &data32->value.integer.step))
+		if (get_user(data.value.integer.min, &data32->value.integer.min) ||
+		    get_user(data.value.integer.max, &data32->value.integer.max) ||
+		    get_user(data.value.integer.step, &data32->value.integer.step))
 			goto error;
 		break;
 	case SNDRV_CTL_ELEM_TYPE_INTEGER64:
-		if (copy_from_user(&data->value.integer64,
+		if (copy_from_user(&data.value.integer64,
 				   &data32->value.integer64,
-				   sizeof(data->value.integer64)))
+				   sizeof(data.value.integer64)))
 			goto error;
 		break;
 	case SNDRV_CTL_ELEM_TYPE_ENUMERATED:
-		if (copy_from_user(&data->value.enumerated,
+		if (copy_from_user(&data.value.enumerated,
 				   &data32->value.enumerated,
-				   sizeof(data->value.enumerated)))
+				   sizeof(data.value.enumerated)))
 			goto error;
-		data->value.enumerated.names_ptr =
-			(uintptr_t)compat_ptr(data->value.enumerated.names_ptr);
+		data.value.enumerated.names_ptr =
+			(uintptr_t)compat_ptr(data.value.enumerated.names_ptr);
 		break;
 	default:
 		break;
 	}
-	err = snd_ctl_elem_add(file, data, replace);
+	err = snd_ctl_elem_add(file, &data, replace);
  error:
-	kfree(data);
 	return err;
 }  
 
