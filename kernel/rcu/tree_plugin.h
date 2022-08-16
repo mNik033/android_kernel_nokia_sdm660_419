@@ -2260,6 +2260,18 @@ static void __init rcu_boot_init_nocb_percpu_data(struct rcu_data *rdp)
  * rcuo CB kthread, spawn it.  Additionally, if the rcuo GP kthread
  * for this CPU's group has not yet been created, spawn it as well.
  */
+#ifdef CONFIG_ARM64
+static inline void rcu_nocb_affine_little(struct task_struct *t)
+{
+	const struct cpumask *lp_mask = topology_possible_sibling_cpumask(0);
+
+	if (!cpumask_empty(lp_mask))
+		set_cpus_allowed_ptr(t, lp_mask);
+}
+#else
+static inline void rcu_nocb_affine_little(struct task_struct *t) { }
+#endif
+
 static void rcu_spawn_one_nocb_kthread(int cpu)
 {
 	struct rcu_data *rdp = per_cpu_ptr(&rcu_data, cpu);
@@ -2276,18 +2288,22 @@ static void rcu_spawn_one_nocb_kthread(int cpu)
 	/* If we didn't spawn the GP kthread first, reorganize! */
 	rdp_gp = rdp->nocb_gp_rdp;
 	if (!rdp_gp->nocb_gp_kthread) {
-		t = kthread_run(rcu_nocb_gp_kthread, rdp_gp,
-				"rcuog/%d", rdp_gp->cpu);
+		t = kthread_create(rcu_nocb_gp_kthread, rdp_gp,
+				   "rcuog/%d", rdp_gp->cpu);
 		if (WARN_ONCE(IS_ERR(t), "%s: Could not start rcuo GP kthread, OOM is now expected behavior\n", __func__))
 			return;
+		rcu_nocb_affine_little(t);
+		wake_up_process(t);
 		WRITE_ONCE(rdp_gp->nocb_gp_kthread, t);
 	}
 
 	/* Spawn the kthread for this CPU. */
-	t = kthread_run(rcu_nocb_cb_kthread, rdp,
-			"rcuo%c/%d", rcu_state.abbr, cpu);
+	t = kthread_create(rcu_nocb_cb_kthread, rdp,
+			   "rcuo%c/%d", rcu_state.abbr, cpu);
 	if (WARN_ONCE(IS_ERR(t), "%s: Could not start rcuo CB kthread, OOM is now expected behavior\n", __func__))
 		return;
+	rcu_nocb_affine_little(t);
+	wake_up_process(t);
 	WRITE_ONCE(rdp->nocb_cb_kthread, t);
 	WRITE_ONCE(rdp->nocb_gp_kthread, rdp_gp->nocb_gp_kthread);
 }
