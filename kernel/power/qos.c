@@ -265,55 +265,53 @@ static const struct file_operations pm_qos_debug_fops = {
 	.release        = single_release,
 };
 
-static inline int pm_qos_set_value_for_cpus(struct pm_qos_constraints *c,
+static inline int pm_qos_set_value_for_cpus(struct pm_qos_request *new_req,
+					     struct pm_qos_constraints *c,
 					     bool dev_req, struct cpumask *cpus)
 {
-	struct pm_qos_request *req = NULL;
+	s32 qos_val[NR_CPUS] = {
+		[0 ... (NR_CPUS - 1)] = PM_QOS_CPU_DMA_LAT_DEFAULT_VALUE
+	};
+	struct pm_qos_request *req;
+	unsigned long new_req_cpus;
+	bool changed = false;
 	int cpu;
-	s32 qos_val[NR_CPUS] = { [0 ... (NR_CPUS - 1)] = c->default_value };
-
-	/*
-	 * pm_qos_constraints can be from different classes,
-	 * Update cpumask only only for CPU_DMA_LATENCY classes
-	 */
 
 	if (c != pm_qos_array[PM_QOS_CPU_DMA_LATENCY]->constraints)
 		return -EINVAL;
 
-	/*
-	 * pm_qos_set_value_for_cpus expects all c->list elements to be of type
-	 * pm_qos_request, however requests from device will contain elements
-	 * of type dev_pm_qos_request.
-	 * pm_qos_constraints.target_per_cpu can be accessed only for
-	 * constraints associated with one of the pm_qos_class and present in
-	 * pm_qos_array. Device requests are not associated with any of
-	 * pm_qos_class, therefore their target_per_cpu cannot be accessed. We
-	 * can safely skip updating target_per_cpu for device requests.
-	 */
 	if (dev_req)
 		return 0;
 
-	plist_for_each_entry(req, &c->list, node) {
-		for_each_cpu(cpu, &req->cpus_affine) {
-			switch (c->type) {
-			case PM_QOS_MIN:
-				if (qos_val[cpu] > req->node.prio)
-					qos_val[cpu] = req->node.prio;
-				break;
-			case PM_QOS_MAX:
-				if (req->node.prio > qos_val[cpu])
-					qos_val[cpu] = req->node.prio;
-				break;
-			default:
-				break;
-			}
+	new_req_cpus = *cpumask_bits(&new_req->cpus_affine);
+	for_each_cpu(cpu, to_cpumask(&new_req_cpus)) {
+		if (c->target_per_cpu[cpu] != new_req->node.prio) {
+			changed = true;
+			break;
 		}
 	}
 
-	for_each_possible_cpu(cpu) {
-		if (c->target_per_cpu[cpu] != qos_val[cpu])
+	if (!changed)
+		return 0;
+
+	plist_for_each_entry(req, &c->list, node) {
+		unsigned long affected_cpus;
+
+		affected_cpus = *cpumask_bits(&req->cpus_affine) & new_req_cpus;
+		if (!affected_cpus)
+			continue;
+
+		for_each_cpu(cpu, to_cpumask(&affected_cpus)) {
+			if (qos_val[cpu] > req->node.prio)
+				qos_val[cpu] = req->node.prio;
+		}
+	}
+
+	for_each_cpu(cpu, to_cpumask(&new_req_cpus)) {
+		if (c->target_per_cpu[cpu] != qos_val[cpu]) {
 			cpumask_set_cpu(cpu, cpus);
-		c->target_per_cpu[cpu] = qos_val[cpu];
+			c->target_per_cpu[cpu] = qos_val[cpu];
+		}
 	}
 
 	return 0;
@@ -333,6 +331,7 @@ static inline int pm_qos_set_value_for_cpus(struct pm_qos_constraints *c,
 int pm_qos_update_target(struct pm_qos_constraints *c, struct plist_node *node,
 			 enum pm_qos_req_action action, int value, bool dev_req)
 {
+	struct pm_qos_request *req = container_of(node, typeof(*req), node);
 	int prev_value, curr_value, new_value;
 	struct cpumask cpus;
 	int ret;
@@ -368,7 +367,7 @@ int pm_qos_update_target(struct pm_qos_constraints *c, struct plist_node *node,
 	curr_value = pm_qos_get_value(c);
 	cpumask_clear(&cpus);
 	pm_qos_set_value(c, curr_value);
-	ret = pm_qos_set_value_for_cpus(c, dev_req, &cpus);
+	ret = pm_qos_set_value_for_cpus(req, c, dev_req, &cpus);
 
 	spin_unlock(&pm_qos_lock);
 
