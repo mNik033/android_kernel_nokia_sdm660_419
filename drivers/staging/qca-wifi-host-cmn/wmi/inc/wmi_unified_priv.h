@@ -112,23 +112,6 @@ struct wmi_ext_dbg_msg {
 };
 #endif /*WMI_EXT_DBG */
 
-#ifdef WMI_INTERFACE_EVENT_LOGGING
-
-#ifndef WMI_EVENT_DEBUG_MAX_ENTRY
-#define WMI_EVENT_DEBUG_MAX_ENTRY (1024)
-#endif
-
-#define WMI_EVENT_DEBUG_ENTRY_MAX_LENGTH (16)
-
-/* wmi_mgmt commands */
-#ifndef WMI_MGMT_EVENT_DEBUG_MAX_ENTRY
-#define WMI_MGMT_EVENT_DEBUG_MAX_ENTRY (256)
-#endif
-/* wmi diag rx events max buffer */
-#ifndef WMI_DIAG_RX_EVENT_DEBUG_MAX_ENTRY
-#define WMI_DIAG_RX_EVENT_DEBUG_MAX_ENTRY (256)
-#endif
-
 #define wmi_alert(params...) QDF_TRACE_FATAL(QDF_MODULE_ID_WMI, ## params)
 #define wmi_err(params...) QDF_TRACE_ERROR(QDF_MODULE_ID_WMI, ## params)
 #define wmi_warn(params...) QDF_TRACE_WARN(QDF_MODULE_ID_WMI, ## params)
@@ -151,6 +134,23 @@ struct wmi_ext_dbg_msg {
 #define wmi_warn_rl(params...) QDF_TRACE_WARN_RL(QDF_MODULE_ID_WMI, params)
 #define wmi_info_rl(params...) QDF_TRACE_INFO_RL(QDF_MODULE_ID_WMI, params)
 #define wmi_debug_rl(params...) QDF_TRACE_DEBUG_RL(QDF_MODULE_ID_WMI, params)
+
+#ifdef WMI_INTERFACE_EVENT_LOGGING
+
+#ifndef WMI_EVENT_DEBUG_MAX_ENTRY
+#define WMI_EVENT_DEBUG_MAX_ENTRY (1024)
+#endif
+
+#define WMI_EVENT_DEBUG_ENTRY_MAX_LENGTH (16)
+
+/* wmi_mgmt commands */
+#ifndef WMI_MGMT_EVENT_DEBUG_MAX_ENTRY
+#define WMI_MGMT_EVENT_DEBUG_MAX_ENTRY (256)
+#endif
+/* wmi diag rx events max buffer */
+#ifndef WMI_DIAG_RX_EVENT_DEBUG_MAX_ENTRY
+#define WMI_DIAG_RX_EVENT_DEBUG_MAX_ENTRY (256)
+#endif
 
 /**
  * struct wmi_command_debug - WMI command log buffer data type
