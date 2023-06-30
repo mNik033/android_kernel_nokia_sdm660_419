@@ -278,7 +278,7 @@ static inline void qdf_trace_msg(QDF_MODULE_ID module, QDF_TRACE_LEVEL level,
 #endif
 
 #ifdef PANIC_ON_BUG
-#ifdef CONFIG_SLUB_DEBUG
+#if defined(CONFIG_SLUB_DEBUG) && defined(WLAN_DEBUG)
 /**
  * __qdf_bug() - Calls BUG() when the PANIC_ON_BUG compilation option is enabled
  *
