@@ -153,6 +153,11 @@
                 ti,bypass-tmax = <0>;   /* 0, not bypass; 1, bypass */
                 tas2557,device-model = "DRG"; /* Select tas2557 firmware */
             };
+            nxp_tfa9891_amp@34 {
+                compatible = "nxp,tfa98xx";
+                reg = <0x34>;
+                nxp,fw-name = "TFA9894_drg.cnt";
+            };
     };
     
     /* gpio */

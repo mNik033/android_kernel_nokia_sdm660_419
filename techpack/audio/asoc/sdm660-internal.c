@@ -3448,7 +3448,8 @@ static struct snd_soc_card *msm_int_populate_sndcard_dailinks(
 	}
 #if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
 	/*Add for nxp tfa9891 or non nxp tfa9891*/
-	if(strstr(saved_command_line, "androidboot.device=PL2"))	{
+	if(strstr(saved_command_line, "androidboot.device=PL2") ||
+	   strstr(saved_command_line, "androidboot.device=DRG"))	{
 		if(strstr(saved_command_line, "androidboot.smartamp=nxp")) {
 			memcpy(dailink + len1,
 					msm_mi2s_be_dai_links_nxp,
