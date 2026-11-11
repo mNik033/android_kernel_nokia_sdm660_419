@@ -1,7 +1,3 @@
-dtb-$(CONFIG_FIH_SDM630_SDM660_PROJS) += sdm630-mtp.dtb \
-		sdm660-qrd.dtb \
-		sdm630-pm660a-qrd.dtb \
-		sdm660-mtp.dtb
 
 dtb-$(CONFIG_FIH_CHARM) += sdm630-cdp-c1n-preEVT.dtb \
 		sdm630-cdp-c1n-EVT.dtb \
