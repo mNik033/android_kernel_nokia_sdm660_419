@@ -220,13 +220,15 @@ end:
 	return nResult;
 }
 
-static int tas2557_dev_bulk_read(
+static int tas2557_dev_bulk_xfer(
 	struct tas2557_priv *pTAS2557,
 	unsigned int nRegister,
 	u8 *pData,
-	unsigned int nLength)
+	unsigned int nLength,
+	bool is_write)
 {
 	int nResult = 0;
+	u8 *dma_buf;
 
 	mutex_lock(&pTAS2557->dev_lock);
 	if (pTAS2557->mbTILoadActive) {
@@ -234,30 +236,64 @@ static int tas2557_dev_bulk_read(
 			goto end; /* let only writes from TILoad pass. */
 
 		nRegister &= ~0x80000000;
-		dev_dbg(pTAS2557->dev, "TiLoad BR REG B[%d]P[%d]R[%d], count=%d\n",
+		dev_dbg(pTAS2557->dev, "TiLoad %s REG B[%d]P[%d]R[%d], count=%d\n",
+				is_write ? "BW" : "BR",
 				TAS2557_BOOK_ID(nRegister),
 				TAS2557_PAGE_ID(nRegister),
 				TAS2557_PAGE_REG(nRegister),
 				nLength);
 	}
 
+	if (!pData || !nLength) {
+		nResult = -EINVAL;
+		goto end;
+	}
+
 	nResult = tas2557_change_book_page(pTAS2557,
 				TAS2557_BOOK_ID(nRegister),
 				TAS2557_PAGE_ID(nRegister));
 	if (nResult >= 0) {
-		nResult = regmap_bulk_read(pTAS2557->mpRegmap, TAS2557_PAGE_REG(nRegister), pData, nLength);
+		/* Bounce through kmalloc so regmap I2C never sees stack/vmalloc buffers */
+		dma_buf = is_write ? kmemdup(pData, nLength, GFP_KERNEL)
+				   : kmalloc(nLength, GFP_KERNEL);
+		if (!dma_buf) {
+			nResult = -ENOMEM;
+			goto end;
+		}
+
+		if (is_write)
+			nResult = regmap_bulk_write(pTAS2557->mpRegmap,
+					TAS2557_PAGE_REG(nRegister),
+					dma_buf, nLength);
+		else
+			nResult = regmap_bulk_read(pTAS2557->mpRegmap,
+					TAS2557_PAGE_REG(nRegister),
+					dma_buf, nLength);
+
 		if (nResult < 0) {
 			dev_err(pTAS2557->dev, "%s, %d, I2C error %d\n",
 				__func__, __LINE__, nResult);
 			pTAS2557->mnErrCode |= ERROR_DEVA_I2C_COMM;
-		} else
+		} else {
+			if (!is_write)
+				memcpy(pData, dma_buf, nLength);
 			pTAS2557->mnErrCode &= ~ERROR_DEVA_I2C_COMM;
+		}
+		kfree(dma_buf);
 	}
 
 end:
-
 	mutex_unlock(&pTAS2557->dev_lock);
 	return nResult;
+}
+
+static int tas2557_dev_bulk_read(
+	struct tas2557_priv *pTAS2557,
+	unsigned int nRegister,
+	u8 *pData,
+	unsigned int nLength)
+{
+	return tas2557_dev_bulk_xfer(pTAS2557, nRegister, pData, nLength, false);
 }
 
 static int tas2557_dev_bulk_write(
@@ -266,39 +302,7 @@ static int tas2557_dev_bulk_write(
 	u8 *pData,
 	unsigned int nLength)
 {
-	int nResult = 0;
-
-	mutex_lock(&pTAS2557->dev_lock);
-	if (pTAS2557->mbTILoadActive) {
-		if (!(nRegister & 0x80000000))
-			goto end; /* let only writes from TILoad pass. */
-
-		nRegister &= ~0x80000000;
-
-		dev_dbg(pTAS2557->dev, "TiLoad BW REG B[%d]P[%d]R[%d], count=%d\n",
-				TAS2557_BOOK_ID(nRegister),
-				TAS2557_PAGE_ID(nRegister),
-				TAS2557_PAGE_REG(nRegister),
-				nLength);
-	}
-
-	nResult = tas2557_change_book_page( pTAS2557,
-				TAS2557_BOOK_ID(nRegister),
-				TAS2557_PAGE_ID(nRegister));
-	if (nResult >= 0) {
-		nResult = regmap_bulk_write(pTAS2557->mpRegmap, TAS2557_PAGE_REG(nRegister), pData, nLength);
-		if (nResult < 0) {
-			dev_err(pTAS2557->dev, "%s, %d, I2C error %d\n",
-				__func__, __LINE__, nResult);
-			pTAS2557->mnErrCode |= ERROR_DEVA_I2C_COMM;
-		} else
-			pTAS2557->mnErrCode &= ~ERROR_DEVA_I2C_COMM;
-	}
-
-end:
-
-	mutex_unlock(&pTAS2557->dev_lock);
-	return nResult;
+	return tas2557_dev_bulk_xfer(pTAS2557, nRegister, pData, nLength, true);
 }
 
 static int tas2557_dev_update_bits(
