@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2026, The LineageOS Project.
+ */
+
+&firmware {
+	android {
+		/delete-node/ vbmeta;
+	};
+};
+
+/delete-node/ &dfps_data_mem;
+
+&cont_splash_mem {
+	reg = <0x0 0x9d400000 0x0 0x02400000>;
+};
+
+&soc {
+	/delete-node/ qcom,qbt1000;
+
+	qcom,icnss@18800000 {
+		qcom,vdd-cx-mx-config = <525000 950000>;
+	};
+};
+
+&mdss_dsi0_pll {
+	/delete-property/ qcom,dsi-pll-ssc-en;
+	/delete-property/ qcom,dsi-pll-ssc-mode;
+	/delete-property/ memory-region;
+	reg = <0xc994400 0x588>,
+	      <0xc8c2300 0x8>;
+	reg-names = "pll_base", "gdsc_base";
+};

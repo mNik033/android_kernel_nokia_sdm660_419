@@ -20,6 +20,7 @@
 #include "nokia/platform/drg-DVT1.5-636.dtsi"
 /* fih Common includes */
 #include "fih-sdm660-common.dtsi"
+#include "fih-sdm636-mtp-drg.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. SDM 636 PM660 + PM660L MTP, DRG DVT 1.5";

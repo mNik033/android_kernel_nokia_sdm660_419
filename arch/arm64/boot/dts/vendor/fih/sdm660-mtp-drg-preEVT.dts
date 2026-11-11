@@ -19,6 +19,7 @@
 #include "nokia/platform/c1n-preEVT-660.dtsi"
 /* fih Common includes */
 #include "fih-sdm660-common.dtsi"
+#include "fih-sdm636-mtp-drg.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. SDM 660 PM660 + PM660L MTP, DRG preEVT";
