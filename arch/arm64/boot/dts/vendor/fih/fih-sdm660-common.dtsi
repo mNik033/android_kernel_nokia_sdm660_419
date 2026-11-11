@@ -114,3 +114,17 @@
 		status = "disabled";
 	};
 };
+
+&thermal_zones {
+	quiet-therm-step {
+		cooling-maps {
+			skin_cpu0 {
+				cooling-device = <&CPU0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+
+			skin_cpu4 {
+				cooling-device = <&CPU4 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+};
