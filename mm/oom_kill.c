@@ -1390,7 +1390,7 @@ void add_to_oom_reaper(struct task_struct *p)
 	static DEFINE_RATELIMIT_STATE(reaper_rs, DEFAULT_RATELIMIT_INTERVAL,
 						 DEFAULT_RATELIMIT_BURST);
 
-	if (!sysctl_reap_mem_on_sigkill)
+	if (!sysctl_reap_mem_on_sigkill || IS_ENABLED(CONFIG_ANDROID_SIMPLE_LMK))
 		return;
 
 	p = find_lock_task_mm(p);
