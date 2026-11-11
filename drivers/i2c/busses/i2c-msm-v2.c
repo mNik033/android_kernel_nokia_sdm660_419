@@ -23,6 +23,8 @@
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
 #include <linux/dma-mapping.h>
+#include <linux/mm.h>
+#include <linux/sched/task_stack.h>
 #include <linux/i2c.h>
 #include <linux/of.h>
 #include <linux/gpio.h>
@@ -2035,6 +2037,7 @@ i2c_msm_qup_choose_mode(struct i2c_msm_ctrl *ctrl)
 	struct i2c_msm_xfer           *xfer = &ctrl->xfer;
 	size_t rx_cnt_sum = xfer->rx_cnt + xfer->rx_ovrhd_cnt;
 	size_t tx_cnt_sum = xfer->tx_cnt + xfer->tx_ovrhd_cnt;
+	int i;
 
 
 	if (ctrl->dbgfs.force_xfer_mode != I2C_MSM_XFER_MODE_NONE)
@@ -2046,6 +2049,19 @@ i2c_msm_qup_choose_mode(struct i2c_msm_ctrl *ctrl)
 
 	if (ctrl->rsrcs.disable_dma)
 		return I2C_MSM_XFER_MODE_BLOCK;
+
+	/*
+	 * Stack (with CONFIG_VMAP_STACK), vmalloc, or static buffers cannot be
+	 * mapped by dma_map_single(); fall back to PIO block mode.
+	 */
+	for (i = 0; i < xfer->msg_cnt; i++) {
+		const void *buf = xfer->msgs[i].buf;
+
+		if (xfer->msgs[i].len && buf &&
+		    (is_vmalloc_addr(buf) || !virt_addr_valid(buf) ||
+		     object_is_on_stack(buf)))
+			return I2C_MSM_XFER_MODE_BLOCK;
+	}
 
 	return I2C_MSM_XFER_MODE_DMA;
 }
