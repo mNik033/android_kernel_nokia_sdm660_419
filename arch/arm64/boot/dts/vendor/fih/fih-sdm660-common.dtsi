@@ -85,3 +85,7 @@
         };
     };
 };
+
+&sdhc_1 {
+	compatible = "qcom,sdhci-msm-v5";
+};
