@@ -345,6 +345,24 @@ void zpool_unmap_handle(struct zpool *zpool, unsigned long handle)
 	zpool->driver->unmap(zpool->pool, handle);
 }
 
+void *zpool_obj_read_begin(struct zpool *zpool, unsigned long handle,
+			   void *local_copy)
+{
+	return zpool->driver->obj_read_begin(zpool->pool, handle, local_copy);
+}
+
+void zpool_obj_read_end(struct zpool *zpool, unsigned long handle,
+			void *handle_mem)
+{
+	zpool->driver->obj_read_end(zpool->pool, handle, handle_mem);
+}
+
+void zpool_obj_write(struct zpool *zpool, unsigned long handle,
+		     void *handle_mem, size_t mem_len)
+{
+	zpool->driver->obj_write(zpool->pool, handle, handle_mem, mem_len);
+}
+
 /**
  * zpool_get_total_size() - The total size of the pool
  * @zpool:	The zpool to check
