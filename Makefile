@@ -716,6 +716,10 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS   += -Os
+else ifdef CONFIG_CC_IS_CLANG
+KBUILD_CFLAGS   += -O3 -march=armv8-a+crc+crypto
+KBUILD_AFLAGS   += -O3 -march=armv8-a+crc+crypto
+KBUILD_LDFLAGS  += -O3 --plugin-opt=O3
 else
 KBUILD_CFLAGS   += -O2
 endif
@@ -896,7 +900,10 @@ endif
 lto-clang-flags += -fvisibility=default $(call cc-option, -fsplit-lto-unit)
 
 # Limit inlining across translation units to reduce binary size
-LD_FLAGS_LTO_CLANG := -mllvm -import-instr-limit=5
+LD_FLAGS_LTO_CLANG := -mllvm -import-instr-limit=5 --lto-O3
+ifdef CONFIG_THINLTO
+LD_FLAGS_LTO_CLANG += --thinlto-jobs=$(shell nproc --all)
+endif
 
 KBUILD_LDFLAGS += $(LD_FLAGS_LTO_CLANG)
 KBUILD_LDFLAGS_MODULE += $(LD_FLAGS_LTO_CLANG)
