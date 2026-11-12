@@ -192,5 +192,8 @@ void binder_alloc_copy_from_buffer(struct binder_alloc *alloc,
 				   binder_size_t buffer_offset,
 				   size_t bytes);
 
+int binder_buffer_pool_create(void);
+void binder_buffer_pool_destroy(void);
+
 #endif /* _LINUX_BINDER_ALLOC_H */
 
