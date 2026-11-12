@@ -1,5 +1,7 @@
 #include <linux/atomic.h>
 #include <linux/rwsem.h>
+#include "rwsem.h"
+#include "rwsem.h"
 #include <linux/percpu.h>
 #include <linux/lockdep.h>
 #include <linux/percpu-rwsem.h>
