@@ -717,6 +717,7 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS   += -Os
 else ifdef CONFIG_CC_IS_CLANG
+KBUILD_CFLAGS   += -mllvm -hot-cold-split=true
 KBUILD_CFLAGS   += -O3 -march=armv8-a+crc+crypto
 KBUILD_AFLAGS   += -O3 -march=armv8-a+crc+crypto
 KBUILD_LDFLAGS  += -O3 --plugin-opt=O3
