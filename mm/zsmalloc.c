@@ -1976,13 +1976,8 @@ static unsigned long __zs_compact(struct zs_pool *pool,
 		}
 		src_zspage = NULL;
 
-#ifdef _QW_LOCKED
 		if (get_fullness_group(class, dst_zspage) == ZS_INUSE_RATIO_100
-		    || atomic_read(&pool->lock.raw_lock.cnts) != _QW_LOCKED) {
-#else
-		if (get_fullness_group(class, dst_zspage) == ZS_INUSE_RATIO_100
-		    || need_resched()) {
-#endif
+		    || rwlock_is_contended(&pool->lock)) {
 			putback_zspage(class, dst_zspage);
 			dst_zspage = NULL;
 
