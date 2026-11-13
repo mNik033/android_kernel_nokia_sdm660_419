@@ -2374,6 +2374,7 @@ static inline void mm_populate(unsigned long addr, unsigned long len) {}
 /* These take the mm semaphore themselves */
 extern int __must_check vm_brk(unsigned long, unsigned long);
 extern int __must_check vm_brk_flags(unsigned long, unsigned long, unsigned long);
+extern int do_madvise(struct mm_struct *mm, unsigned long start, size_t len_in, int behavior);
 extern int vm_munmap(unsigned long, size_t);
 extern unsigned long __must_check vm_mmap(struct file *, unsigned long,
         unsigned long, unsigned long,
