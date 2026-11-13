@@ -39,6 +39,10 @@
 
 /*===    Dependency    ===*/
 #define LZ4_HC_STATIC_LINKING_ONLY
+#ifdef __KERNEL__
+#include <linux/gfp.h>
+#include <linux/slab.h>
+#endif
 #include "lz4hc.h"
 
 /*! HEAPMODE :
@@ -2323,7 +2327,11 @@ static int LZ4HC_compress_optimal(LZ4HC_CCtx_internal *ctx,
 {
 	int retval = 0;
 #define TRAILING_LITERALS 3
-#if defined(LZ4HC_HEAPMODE) && LZ4HC_HEAPMODE == 1
+#ifdef __KERNEL__
+	LZ4HC_optimal_t *const opt = kmalloc(
+		sizeof(LZ4HC_optimal_t) * (LZ4_OPT_NUM + TRAILING_LITERALS),
+		GFP_NOWAIT | __GFP_NOWARN);
+#elif defined(LZ4HC_HEAPMODE) && LZ4HC_HEAPMODE == 1
 	LZ4HC_optimal_t *const opt = (LZ4HC_optimal_t *)ALLOC(
 		sizeof(LZ4HC_optimal_t) * (LZ4_OPT_NUM + TRAILING_LITERALS));
 #else
@@ -2344,7 +2352,11 @@ static int LZ4HC_compress_optimal(LZ4HC_CCtx_internal *ctx,
 	int ovoff = 0;
 
 	/* init */
-#if defined(LZ4HC_HEAPMODE) && LZ4HC_HEAPMODE == 1
+#ifdef __KERNEL__
+	if (opt == NULL)
+		return LZ4HC_compress_hashChain(ctx, source, dst, srcSizePtr,
+						dstCapacity, 256, limit, dict);
+#elif defined(LZ4HC_HEAPMODE) && LZ4HC_HEAPMODE == 1
 	if (opt == NULL)
 		goto _return_label;
 #endif
@@ -2736,7 +2748,9 @@ _dest_overflow:
 		goto _last_literals;
 	}
 _return_label:
-#if defined(LZ4HC_HEAPMODE) && LZ4HC_HEAPMODE == 1
+#ifdef __KERNEL__
+	kfree(opt);
+#elif defined(LZ4HC_HEAPMODE) && LZ4HC_HEAPMODE == 1
 	if (opt)
 		FREEMEM(opt);
 #endif
