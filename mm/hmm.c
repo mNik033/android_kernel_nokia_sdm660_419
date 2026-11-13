@@ -17,7 +17,7 @@
  * Refer to include/linux/hmm.h for information about heterogeneous memory
  * management or HMM for short.
  */
-#include <linux/mm.h>
+#include <linux/pagewalk.h>
 #include <linux/hmm.h>
 #include <linux/init.h>
 #include <linux/rmap.h>
@@ -673,11 +673,15 @@ static void hmm_pfns_special(struct hmm_range *range)
  * NOT CALLING hmm_vma_range_done() IF FUNCTION RETURNS 0 WILL LEAD TO SERIOUS
  * MEMORY CORRUPTION ! YOU HAVE BEEN WARNED !
  */
+static const struct mm_walk_ops hmm_walk_ops = {
+	.pmd_entry	= hmm_vma_walk_pmd,
+	.pte_hole	= hmm_vma_walk_hole,
+};
+
 int hmm_vma_get_pfns(struct hmm_range *range)
 {
 	struct vm_area_struct *vma = range->vma;
 	struct hmm_vma_walk hmm_vma_walk;
-	struct mm_walk mm_walk;
 	struct hmm *hmm;
 
 	/* Sanity check, this really should not happen ! */
@@ -719,17 +723,9 @@ int hmm_vma_get_pfns(struct hmm_range *range)
 
 	hmm_vma_walk.fault = false;
 	hmm_vma_walk.range = range;
-	mm_walk.private = &hmm_vma_walk;
 
-	mm_walk.vma = vma;
-	mm_walk.mm = vma->vm_mm;
-	mm_walk.pte_entry = NULL;
-	mm_walk.test_walk = NULL;
-	mm_walk.hugetlb_entry = NULL;
-	mm_walk.pmd_entry = hmm_vma_walk_pmd;
-	mm_walk.pte_hole = hmm_vma_walk_hole;
-
-	walk_page_range(range->start, range->end, &mm_walk);
+	walk_page_range(vma->vm_mm, range->start, range->end,
+			&hmm_walk_ops, &hmm_vma_walk);
 	return 0;
 }
 EXPORT_SYMBOL(hmm_vma_get_pfns);
@@ -848,7 +844,6 @@ int hmm_vma_fault(struct hmm_range *range, bool block)
 	struct vm_area_struct *vma = range->vma;
 	unsigned long start = range->start;
 	struct hmm_vma_walk hmm_vma_walk;
-	struct mm_walk mm_walk;
 	struct hmm *hmm;
 	int ret;
 
@@ -894,19 +889,11 @@ int hmm_vma_fault(struct hmm_range *range, bool block)
 	hmm_vma_walk.fault = true;
 	hmm_vma_walk.block = block;
 	hmm_vma_walk.range = range;
-	mm_walk.private = &hmm_vma_walk;
 	hmm_vma_walk.last = range->start;
 
-	mm_walk.vma = vma;
-	mm_walk.mm = vma->vm_mm;
-	mm_walk.pte_entry = NULL;
-	mm_walk.test_walk = NULL;
-	mm_walk.hugetlb_entry = NULL;
-	mm_walk.pmd_entry = hmm_vma_walk_pmd;
-	mm_walk.pte_hole = hmm_vma_walk_hole;
-
 	do {
-		ret = walk_page_range(start, range->end, &mm_walk);
+		ret = walk_page_range(vma->vm_mm, start, range->end,
+				&hmm_walk_ops, &hmm_vma_walk);
 		start = hmm_vma_walk.last;
 	} while (ret == -EAGAIN);
 
