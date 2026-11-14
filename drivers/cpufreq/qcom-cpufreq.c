@@ -49,7 +49,6 @@ static int set_cpu_freq(struct cpufreq_policy *policy, unsigned int new_freq,
 
 	freqs.old = policy->cur;
 	freqs.new = new_freq;
-	freqs.cpu = policy->cpu;
 
 	trace_cpu_frequency_switch_start(freqs.old, freqs.new, policy->cpu);
 	cpufreq_freq_transition_begin(policy, &freqs);
@@ -331,7 +330,7 @@ static void msm_cpufreq_ready(struct cpufreq_policy *policy)
 
 static struct cpufreq_driver msm_cpufreq_driver = {
 	/* lps calculations are handled here. */
-	.flags		= CPUFREQ_STICKY | CPUFREQ_CONST_LOOPS |
+	.flags		= CPUFREQ_CONST_LOOPS |
 				CPUFREQ_NEED_INITIAL_FREQ_CHECK,
 	.init		= msm_cpufreq_init,
 	.verify		= msm_cpufreq_verify,
