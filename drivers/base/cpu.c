@@ -211,6 +211,7 @@ static struct attribute_group cpu_isolated_attr_group = {
 
 #endif
 
+#ifdef CONFIG_SCHED_WALT
 static ssize_t show_sched_load_boost(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -263,6 +264,7 @@ static struct attribute *sched_cpu_attrs[] = {
 static struct attribute_group sched_cpu_attr_group = {
 	.attrs = sched_cpu_attrs,
 };
+#endif
 
 static const struct attribute_group *common_cpu_attr_groups[] = {
 #ifdef CONFIG_KEXEC
@@ -271,7 +273,9 @@ static const struct attribute_group *common_cpu_attr_groups[] = {
 #ifdef CONFIG_HOTPLUG_CPU
 	&cpu_isolated_attr_group,
 #endif
+#ifdef CONFIG_SCHED_WALT
 	&sched_cpu_attr_group,
+#endif
 	NULL
 };
 
@@ -282,7 +286,9 @@ static const struct attribute_group *hotplugable_cpu_attr_groups[] = {
 #ifdef CONFIG_HOTPLUG_CPU
 	&cpu_isolated_attr_group,
 #endif
+#ifdef CONFIG_SCHED_WALT
 	&sched_cpu_attr_group,
+#endif
 	NULL
 };
 

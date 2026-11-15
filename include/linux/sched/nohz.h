@@ -6,13 +6,8 @@
  * This is the interface between the scheduler and nohz/dynticks:
  */
 
-#if defined(CONFIG_SMP) && defined(CONFIG_NO_HZ_COMMON)
-extern void cpu_load_update_nohz_start(void);
-extern void cpu_load_update_nohz_stop(void);
-#else
 static inline void cpu_load_update_nohz_start(void) { }
 static inline void cpu_load_update_nohz_stop(void) { }
-#endif
 
 #if defined(CONFIG_SMP) && defined(CONFIG_NO_HZ_COMMON)
 extern void nohz_balance_enter_idle(int cpu);

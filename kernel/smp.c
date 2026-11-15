@@ -261,6 +261,18 @@ static void flush_smp_call_function_queue(bool warn_cpu_offline)
 	irq_work_run();
 }
 
+void flush_smp_call_function_from_idle(void)
+{
+	unsigned long flags;
+
+	if (llist_empty(this_cpu_ptr(&call_single_queue)))
+		return;
+
+	local_irq_save(flags);
+	flush_smp_call_function_queue(false);
+	local_irq_restore(flags);
+}
+
 /*
  * smp_call_function_single - Run a function on a specific CPU
  * @func: The function to run. This must be fast and non-blocking.

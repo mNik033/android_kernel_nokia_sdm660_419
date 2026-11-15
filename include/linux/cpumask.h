@@ -703,6 +703,19 @@ static inline void cpumask_copy(struct cpumask *dstp,
  */
 #define cpumask_first_and(src1p, src2p) cpumask_next_and(-1, (src1p), (src2p))
 
+static inline unsigned int cpumask_first_and_and(const struct cpumask *src1p,
+						 const struct cpumask *src2p,
+						 const struct cpumask *src3p)
+{
+	int cpu;
+
+	for_each_cpu_and(cpu, src1p, src2p) {
+		if (cpumask_test_cpu(cpu, src3p))
+			return cpu;
+	}
+	return nr_cpu_ids;
+}
+
 /**
  * cpumask_any_and - pick a "random" cpu from *mask1 & *mask2
  * @mask1: the first input cpumask

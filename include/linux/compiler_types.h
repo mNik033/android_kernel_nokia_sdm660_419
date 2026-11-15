@@ -142,6 +142,20 @@ struct ftrace_likely_data {
 #endif
 
 /* Are two types/vars the same type (ignoring qualifiers)? */
+#define __scalar_type_to_signed_cases(type)				\
+		unsigned type:	(signed type)0,				\
+		signed type:	(signed type)0
+
+#define __signed_scalar_typeof(x) typeof(				\
+		_Generic((x),						\
+			 char:	(signed char)0,				\
+			 __scalar_type_to_signed_cases(char),		\
+			 __scalar_type_to_signed_cases(short),		\
+			 __scalar_type_to_signed_cases(int),		\
+			 __scalar_type_to_signed_cases(long),		\
+			 __scalar_type_to_signed_cases(long long),	\
+			 default: (x)))
+
 #define __same_type(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))
 
 /* Is this type a native word size -- useful for atomic operations */

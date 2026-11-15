@@ -25,14 +25,11 @@ enum { sysctl_hung_task_timeout_secs = 0 };
 /* MAX_MARGIN_LEVELS should be one less than MAX_CLUSTERS */
 #define MAX_MARGIN_LEVELS (MAX_CLUSTERS - 1)
 
-extern unsigned int sysctl_sched_latency;
 extern unsigned int sysctl_sched_min_granularity;
 extern unsigned int sysctl_sched_sync_hint_enable;
 extern unsigned int sysctl_sched_cstate_aware;
-extern unsigned int sysctl_sched_wakeup_granularity;
-extern unsigned int sysctl_sched_child_runs_first;
-extern unsigned int sysctl_sched_force_lb_enable;
 #ifdef CONFIG_SCHED_WALT
+extern unsigned int sysctl_sched_force_lb_enable;
 extern unsigned int sysctl_sched_capacity_margin_up[MAX_MARGIN_LEVELS];
 extern unsigned int sysctl_sched_capacity_margin_down[MAX_MARGIN_LEVELS];
 extern unsigned int sysctl_sched_user_hint;
@@ -57,7 +54,6 @@ extern unsigned int sysctl_sched_coloc_busy_hyst_max_ms;
 extern unsigned int sysctl_sched_window_stats_policy;
 extern unsigned int sysctl_sched_ravg_window_nr_ticks;
 extern unsigned int sysctl_sched_dynamic_ravg_window_enable;
-extern unsigned int sysctl_sched_prefer_spread;
 extern unsigned int sysctl_walt_rtg_cfs_boost_prio;
 extern unsigned int sysctl_walt_low_latency_task_threshold;
 
@@ -79,6 +75,16 @@ extern int sched_updown_migrate_handler(struct ctl_table *table,
 					int write, void __user *buffer,
 					size_t *lenp, loff_t *ppos);
 #endif
+
+#ifdef CONFIG_PELT_COMPATIBILITY_LAYER
+extern unsigned int sysctl_sched_boost;
+extern unsigned int sysctl_sched_prefer_spread;
+extern unsigned int sysctl_sched_busy_hyst_enable_cpus;
+extern unsigned int sysctl_sched_busy_hyst;
+extern unsigned int sysctl_sched_group_upmigrate_pct;
+extern unsigned int sysctl_sched_group_downmigrate_pct;
+extern unsigned int sysctl_sched_ravg_window_nr_ticks;
+#endif /* CONFIG_PELT_COMPATIBILITY_LAYER */
 
 #if defined(CONFIG_PREEMPTIRQ_EVENTS) || defined(CONFIG_PREEMPT_TRACER)
 extern unsigned int sysctl_preemptoff_tracing_threshold_ns;
@@ -122,6 +128,7 @@ extern int sysctl_sched_rt_runtime;
 #ifdef CONFIG_UCLAMP_TASK
 extern unsigned int sysctl_sched_uclamp_util_min;
 extern unsigned int sysctl_sched_uclamp_util_max;
+extern unsigned int sysctl_sched_uclamp_util_min_rt_default;
 #endif
 
 #ifdef CONFIG_CFS_BANDWIDTH

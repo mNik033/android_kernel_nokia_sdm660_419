@@ -167,7 +167,7 @@ TRACE_EVENT(sched_enq_deq_task,
 		__entry->cpu		= task_cpu(p);
 		__entry->enqueue	= enqueue;
 		__entry->nr_running	= task_rq(p)->nr_running;
-		__entry->cpu_load	= task_rq(p)->cpu_load[0];
+		__entry->cpu_load	= task_rq(p)->cfs.avg.load_avg;
 		__entry->rt_nr_running	= task_rq(p)->rt.rt_nr_running;
 		__entry->cpus_allowed	= cpus_allowed;
 		__entry->demand		= task_load(p);
@@ -1001,7 +1001,7 @@ TRACE_EVENT(sched_load_cfs_rq,
 		__trace_sched_path(cfs_rq, __get_dynamic_array(path),
 				   __get_dynamic_array_len(path));
 		__entry->load		= cfs_rq->avg.load_avg;
-		__entry->rbl_load 	= cfs_rq->avg.runnable_load_avg;
+		__entry->rbl_load 	= cfs_rq->avg.runnable_avg;
 		__entry->util		= cfs_rq->avg.util_avg;
 	),
 
@@ -1107,7 +1107,7 @@ TRACE_EVENT(sched_load_se,
 				      p ? TASK_COMM_LEN : sizeof("(null)"));
 		__entry->pid = p ? p->pid : -1;
 		__entry->load = se->avg.load_avg;
-		__entry->rbl_load = se->avg.runnable_load_avg;
+		__entry->rbl_load = se->avg.runnable_avg;
 		__entry->util = se->avg.util_avg;
 	),
 
@@ -1240,7 +1240,7 @@ TRACE_EVENT(sched_cpu_util,
 		__entry->capacity_curr      = capacity_curr_of(cpu);
 		__entry->capacity           = capacity_of(cpu);
 		__entry->capacity_orig      = capacity_orig_of(cpu);
-		__entry->idle_state         = idle_get_state_idx(cpu_rq(cpu));
+		__entry->idle_state         = idle_get_state(cpu_rq(cpu)) ? 1 : -1;
 		__entry->irqload            = sched_irqload(cpu);
 		__entry->online             = cpu_online(cpu);
 		__entry->isolated           = cpu_isolated(cpu);
@@ -1302,7 +1302,7 @@ TRACE_EVENT(sched_compute_energy,
 TRACE_EVENT(sched_task_util,
 
 	TP_PROTO(struct task_struct *p, unsigned long candidates,
-		int best_energy_cpu, bool sync, int need_idle, int fastpath,
+		int best_energy_cpu, bool sync, bool need_idle, int fastpath,
 		bool placement_boost, u64 start_t,
 		bool stune_boosted, bool is_rtg, bool rtg_skip_min,
 		int start_cpu),
@@ -1319,7 +1319,7 @@ TRACE_EVENT(sched_task_util,
 		__field(int,		prev_cpu)
 		__field(int,		best_energy_cpu)
 		__field(bool,		sync)
-		__field(int,		need_idle)
+		__field(bool,		need_idle)
 		__field(int,		fastpath)
 		__field(int,		placement_boost)
 		__field(int,		rtg_cpu)
@@ -1682,6 +1682,28 @@ TRACE_EVENT_CONDITION(sched_overutilized,
 		__entry->overutilized ? 1 : 0, __entry->cpulist)
 );
 
+TRACE_EVENT(sched_capacity_update,
+
+	TP_PROTO(int cpu),
+
+	TP_ARGS(cpu),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, cpu)
+		__field(unsigned int, capacity)
+		__field(unsigned int, capacity_orig)
+	),
+
+	TP_fast_assign(
+		__entry->cpu			= cpu;
+		__entry->capacity		= capacity_of(cpu);
+		__entry->capacity_orig		= capacity_orig_of(cpu);
+	),
+
+	TP_printk("cpu=%d capacity=%u capacity_orig=%u",
+		__entry->cpu, __entry->capacity, __entry->capacity_orig)
+);
+
 /*
  * Tracepoint for sched_get_nr_running_avg
  */
@@ -1747,6 +1769,10 @@ TRACE_EVENT(sched_isolate,
 		__entry->requested_cpu, __entry->isolated_cpus,
 		__entry->time, __entry->isolate)
 );
+
+DECLARE_TRACE(pelt_thermal_tp,
+	TP_PROTO(struct rq *rq),
+	TP_ARGS(rq));
 
 #include "walt.h"
 #endif /* CONFIG_SMP */
