@@ -29,7 +29,7 @@
  * wakeup-preemption), since its likely going to consume data we
  * touched, increases cache locality.
  */
-#define SCHED_FEAT_NEXT_BUDDY 0
+#define SCHED_FEAT_NEXT_BUDDY 1
 
 /*
  * Allow completely ignoring cfs_rq->next; which can be set from various
@@ -44,7 +44,7 @@
  * Consider buddies to be cache hot, decreases the likeliness of a
  * cache buddy being migrated away, increases cache locality.
  */
-#define SCHED_FEAT_CACHE_HOT_BUDDY 0
+#define SCHED_FEAT_CACHE_HOT_BUDDY 1
 
 /*
  * Delay dequeueing tasks until they get selected or woken.
