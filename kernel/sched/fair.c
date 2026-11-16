@@ -8622,7 +8622,9 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	bool need_idle = wake_to_idle(p);
 	int placement_boost = task_boost_policy(p);
 	u64 start_t = 0;
+#ifdef CONFIG_SCHED_WALT
 	int delta = 0;
+#endif
 	int task_boost = per_task_boost(p);
 	int boosted = (uclamp_boosted(p) > 0) || (task_boost > 0);
 #ifdef CONFIG_SCHED_TUNE
@@ -8734,12 +8736,12 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 		delta = task_util(p);
 #endif
 	if (task_placement_boost_enabled(p) || fbt_env.need_idle ||
-	    prefer_high_cap || is_rtg || __cpu_overutilized(prev_cpu, delta) ||
 #ifdef CONFIG_SCHED_WALT
-	    !task_fits_max(p, prev_cpu) || cpu_isolated(prev_cpu)) {
+	    prefer_high_cap || is_rtg || __cpu_overutilized(prev_cpu, delta) ||
 #else
-            !task_fits_max(p, prev_cpu)) {
+	    prefer_high_cap || is_rtg || cpu_overutilized(prev_cpu) ||
 #endif
+	    !task_fits_max(p, prev_cpu) || cpu_isolated(prev_cpu)) {
 		best_energy_cpu = cpu;
 		goto unlock;
 	}
@@ -10427,7 +10429,12 @@ void update_group_capacity(struct sched_domain *sd, int cpu)
 		 */
 
 		for_each_cpu(cpu, sched_group_span(sdg)) {
-			unsigned long cpu_cap = capacity_of(cpu);
+			unsigned long cpu_cap;
+
+			if (cpumask_test_cpu(cpu, cpu_isolated_mask))
+				continue;
+
+			cpu_cap = capacity_of(cpu);
 
 			capacity += cpu_cap;
 			min_capacity = min(cpu_cap, min_capacity);
@@ -10442,13 +10449,19 @@ void update_group_capacity(struct sched_domain *sd, int cpu)
 		group = child->groups;
 		do {
 			struct sched_group_capacity *sgc = group->sgc;
+			cpumask_t *cpus = sched_group_span(group);
 
-			capacity += sgc->capacity;
-			min_capacity = min(sgc->min_capacity, min_capacity);
-			max_capacity = max(sgc->max_capacity, max_capacity);
+			if (!cpu_isolated(cpumask_first(cpus))) {
+				capacity += sgc->capacity;
+				min_capacity = min(sgc->min_capacity, min_capacity);
+				max_capacity = max(sgc->max_capacity, max_capacity);
+			}
 			group = group->next;
 		} while (group != child->groups);
 	}
+
+	if (!capacity)
+		capacity = 1;
 
 	sdg->sgc->capacity = capacity;
 	sdg->sgc->min_capacity = min_capacity;
@@ -10624,9 +10637,13 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 
 	for_each_cpu_and(i, sched_group_span(group), env->cpus) {
 		struct rq *rq = cpu_rq(i);
-		unsigned long load = cpu_load(rq);
+		unsigned long load;
 
-                sgs->group_load += load;
+		if (cpu_isolated(i))
+			continue;
+
+		load = cpu_load(rq);
+		sgs->group_load += load;
 		sgs->group_util += cpu_util(i);
 		sgs->group_runnable += cpu_runnable(rq);
 		sgs->sum_h_nr_running += rq->cfs.h_nr_runnable;
@@ -11763,6 +11780,15 @@ static int need_active_balance(struct lb_env *env)
 	return 0;
 }
 
+static int group_balance_cpu_not_isolated(struct sched_group *sg)
+{
+	cpumask_t cpus;
+
+	cpumask_and(&cpus, sched_group_span(sg), group_balance_mask(sg));
+	cpumask_andnot(&cpus, &cpus, cpu_isolated_mask);
+	return cpumask_first(&cpus);
+}
+
 static int active_load_balance_cpu_stop(void *data);
 
 static int should_we_balance(struct lb_env *env)
@@ -11795,15 +11821,15 @@ static int should_we_balance(struct lb_env *env)
 
 	/* Try to find first idle CPU */
 	for_each_cpu_and(cpu, group_balance_mask(sg), env->cpus) {
-		if (!idle_cpu(cpu))
+		if (!idle_cpu(cpu) || cpu_isolated(cpu))
 			continue;
 
 		/* Are we the first idle CPU? */
 		return cpu == env->dst_cpu;
 	}
 
-	/* Are we the first CPU of this group ? */
-	return group_balance_cpu(sg) == env->dst_cpu;
+	/* Are we the first non-isolated CPU of this group ? */
+	return group_balance_cpu_not_isolated(sg) == env->dst_cpu;
 }
 
 /*
@@ -12018,7 +12044,8 @@ more_balance:
 			 * ->active_balance_work.  Once set, it's cleared
 			 * only after active load balance is finished.
 			 */
-                        if (!busiest->active_balance) {
+			if (!busiest->active_balance &&
+			    !cpu_isolated(cpu_of(busiest))) {
 				busiest->active_balance = 1;
 				busiest->push_cpu = this_cpu;
 				active_balance = 1;
@@ -12288,8 +12315,11 @@ static DEFINE_SPINLOCK(balancing);
  */
 void update_max_interval(void)
 {
+	cpumask_t avail_mask;
 	unsigned int available_cpus;
-	available_cpus = num_online_cpus();
+
+	cpumask_andnot(&avail_mask, cpu_online_mask, cpu_isolated_mask);
+	available_cpus = cpumask_weight(&avail_mask);
 
 	max_load_balance_interval = HZ*available_cpus/10;
 }
@@ -12476,9 +12506,8 @@ static inline int find_energy_aware_new_ilb(void)
 
 	cpumask_and(&idle_cpus, nohz.idle_cpus_mask,
 			housekeeping_cpumask(HK_FLAG_MISC));
-#ifdef CONFIG_SCHED_WALT
 	cpumask_andnot(&idle_cpus, &idle_cpus, cpu_isolated_mask);
-#endif
+
 	sg = sd->groups;
 	do {
 		int i;
@@ -12544,6 +12573,9 @@ static inline int find_new_ilb(void)
 	for_each_cpu_and(ilb, nohz.idle_cpus_mask, hk_mask) {
 
 		if (ilb == smp_processor_id())
+			continue;
+
+		if (cpu_isolated(ilb))
 			continue;
 
 		if (idle_cpu(ilb))
@@ -12881,7 +12913,7 @@ static void _nohz_idle_balance(struct rq *this_rq, unsigned int flags,
 	smp_mb();
 
 	for_each_cpu(balance_cpu, nohz.idle_cpus_mask) {
-		if (!idle_cpu(balance_cpu))
+		if (!idle_cpu(balance_cpu) || cpu_isolated(balance_cpu))
 			continue;
 
 		/*
@@ -13056,6 +13088,9 @@ static int newidle_balance(struct rq *this_rq, struct rq_flags *rf)
 
 	update_misfit_status(NULL, this_rq);
 
+	if (cpu_isolated(this_cpu))
+		return 0;
+
 	/*
 	 * There is a task waiting to run. No need to search for one.
 	 * Return 0; the task will be enqueued when switching to idle.
@@ -13201,6 +13236,10 @@ static __latent_entropy void run_rebalance_domains(struct softirq_action *h)
 {
 	struct rq *this_rq = this_rq();
 	enum cpu_idle_type idle = this_rq->idle_balance;
+
+	if (cpu_isolated(this_rq->cpu))
+		return;
+
 	/*
 	 * If this CPU has a pending nohz_balance_kick, then do the
 	 * balancing on behalf of the other idle CPUs whose ticks are
