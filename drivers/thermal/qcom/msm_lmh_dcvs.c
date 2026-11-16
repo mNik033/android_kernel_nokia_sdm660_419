@@ -20,6 +20,7 @@
 #include <linux/pm_opp.h>
 #include <linux/cpu_cooling.h>
 #include <linux/atomic.h>
+#include <linux/arch_topology.h>
 #include <linux/regulator/consumer.h>
 #include <linux/cpufreq.h>
 
@@ -183,6 +184,15 @@ static unsigned long limits_mitigation_notify(struct limits_dcvs_hw *hw)
 
 	if (max_cpu_ct == cpumask_weight(&hw->core_map))
 		max_limit = max_cpu_limit;
+	if (unlikely(hw->max_freq[0] == U32_MAX))
+		limits_dcvs_get_freq_limits(hw);
+	if (hw->max_freq[0] && hw->max_freq[0] != U32_MAX) {
+		unsigned long max_cap = arch_scale_cpu_capacity(cpumask_first(&hw->core_map));
+		unsigned long capped = min_t(unsigned long, max_limit, hw->max_freq[0]);
+		unsigned long cap = div_u64((u64)capped * max_cap, hw->max_freq[0]);
+
+		arch_set_thermal_pressure(&hw->core_map, max_cap - cap);
+	}
 	sched_update_cpu_freq_min_max(&hw->core_map, 0, max_limit);
 	pr_debug("CPU:%d max limit:%lu\n", cpumask_first(&hw->core_map),
 			max_limit);
