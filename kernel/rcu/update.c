@@ -376,7 +376,7 @@ void __wait_rcu_gp(bool checktiny, int n, call_rcu_func_t *crcu_array,
 	int i;
 	int j;
 
-	/* Initialize and register callbacks for each flavor specified. */
+	/* Initialize and register callbacks for each crcu_array element. */
 	for (i = 0; i < n; i++) {
 		if (checktiny &&
 		    (crcu_array[i] == call_rcu ||
