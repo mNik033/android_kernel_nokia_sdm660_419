@@ -9354,6 +9354,187 @@ struct cgroup_subsys cpu_cgrp_subsys = {
 	.threaded	= true,
 };
 
+#if !defined(CONFIG_SCHED_TUNE) && defined(CONFIG_PELT_COMPATIBILITY_LAYER)
+struct schedtune_compat {
+	struct cgroup_subsys_state css;
+	s64 boost;
+	u64 prefer_idle;
+	u64 sched_boost_no_override;
+	u64 colocate;
+};
+
+static struct schedtune_compat root_schedtune_compat;
+
+static inline struct schedtune_compat *css_st_compat(struct cgroup_subsys_state *css)
+{
+	return css ? container_of(css, struct schedtune_compat, css) : NULL;
+}
+
+#ifdef CONFIG_UCLAMP_TASK_GROUP
+static struct cgroup_subsys_state *
+st_compat_find_cpu_css(struct cgroup_subsys_state *st_css)
+{
+	struct cgroup_subsys_state *css;
+	const char *name;
+
+	if (!st_css || !st_css->cgroup || !st_css->cgroup->kn)
+		return NULL;
+	if (st_css == &root_schedtune_compat.css)
+		return NULL;
+
+	name = st_css->cgroup->kn->name;
+	css_for_each_child(css, &root_task_group.css) {
+		if (css->cgroup && css->cgroup->kn &&
+		    !strcmp(css->cgroup->kn->name, name))
+			return css;
+	}
+	return NULL;
+}
+#endif
+
+static s64 st_compat_boost_read(struct cgroup_subsys_state *css,
+				struct cftype *cft)
+{
+	return css_st_compat(css)->boost;
+}
+
+static int st_compat_boost_write(struct cgroup_subsys_state *css,
+				 struct cftype *cft, s64 boost)
+{
+	if (boost < -100 || boost > 100)
+		return -EINVAL;
+	css_st_compat(css)->boost = boost;
+
+#ifdef CONFIG_UCLAMP_TASK_GROUP
+	if (css != &root_schedtune_compat.css) {
+		struct cgroup_subsys_state *cpu_css;
+		u64 pct = clamp_val(boost, 0, 100) * POW10(UCLAMP_PERCENT_SHIFT);
+		u64 util = DIV_ROUND_CLOSEST_ULL(pct << SCHED_CAPACITY_SHIFT,
+						 UCLAMP_PERCENT_SCALE);
+
+		static_branch_enable(&sched_uclamp_used);
+		mutex_lock(&uclamp_mutex);
+		rcu_read_lock();
+		cpu_css = st_compat_find_cpu_css(css);
+		if (cpu_css) {
+			struct task_group *tg = css_tg(cpu_css);
+
+			if (tg->uclamp_req[UCLAMP_MIN].value != util)
+				uclamp_se_set(&tg->uclamp_req[UCLAMP_MIN], util, false);
+			tg->uclamp_pct[UCLAMP_MIN] = pct;
+			cpu_util_update_eff(cpu_css);
+		}
+		rcu_read_unlock();
+		mutex_unlock(&uclamp_mutex);
+	}
+#endif
+	return 0;
+}
+
+static u64 st_compat_prefer_idle_read(struct cgroup_subsys_state *css,
+				      struct cftype *cft)
+{
+	return css_st_compat(css)->prefer_idle;
+}
+
+static int st_compat_prefer_idle_write(struct cgroup_subsys_state *css,
+				       struct cftype *cft, u64 prefer_idle)
+{
+	css_st_compat(css)->prefer_idle = !!prefer_idle;
+
+#ifdef CONFIG_UCLAMP_TASK_GROUP
+	if (css != &root_schedtune_compat.css) {
+		struct cgroup_subsys_state *cpu_css;
+
+		rcu_read_lock();
+		cpu_css = st_compat_find_cpu_css(css);
+		if (cpu_css)
+			css_tg(cpu_css)->latency_sensitive = !!prefer_idle;
+		rcu_read_unlock();
+	}
+#endif
+	return 0;
+}
+
+static u64 st_compat_override_read(struct cgroup_subsys_state *css,
+				   struct cftype *cft)
+{
+	return css_st_compat(css)->sched_boost_no_override;
+}
+
+static int st_compat_override_write(struct cgroup_subsys_state *css,
+				    struct cftype *cft, u64 override)
+{
+	css_st_compat(css)->sched_boost_no_override = !!override;
+	return 0;
+}
+
+static u64 st_compat_colocate_read(struct cgroup_subsys_state *css,
+				   struct cftype *cft)
+{
+	return css_st_compat(css)->colocate;
+}
+
+static int st_compat_colocate_write(struct cgroup_subsys_state *css,
+				    struct cftype *cft, u64 colocate)
+{
+	css_st_compat(css)->colocate = !!colocate;
+	return 0;
+}
+
+static struct cftype schedtune_compat_files[] = {
+	{
+		.name = "boost",
+		.read_s64 = st_compat_boost_read,
+		.write_s64 = st_compat_boost_write,
+	},
+	{
+		.name = "prefer_idle",
+		.read_u64 = st_compat_prefer_idle_read,
+		.write_u64 = st_compat_prefer_idle_write,
+	},
+	{
+		.name = "sched_boost_no_override",
+		.read_u64 = st_compat_override_read,
+		.write_u64 = st_compat_override_write,
+	},
+	{
+		.name = "colocate",
+		.read_u64 = st_compat_colocate_read,
+		.write_u64 = st_compat_colocate_write,
+	},
+	{ }	/* terminate */
+};
+
+static struct cgroup_subsys_state *
+schedtune_compat_css_alloc(struct cgroup_subsys_state *parent_css)
+{
+	struct schedtune_compat *st;
+
+	if (!parent_css)
+		return &root_schedtune_compat.css;
+
+	st = kzalloc(sizeof(*st), GFP_KERNEL);
+	if (!st)
+		return ERR_PTR(-ENOMEM);
+
+	return &st->css;
+}
+
+static void schedtune_compat_css_free(struct cgroup_subsys_state *css)
+{
+	if (css != &root_schedtune_compat.css)
+		kfree(css_st_compat(css));
+}
+
+struct cgroup_subsys schedtune_cgrp_subsys = {
+	.css_alloc	= schedtune_compat_css_alloc,
+	.css_free	= schedtune_compat_css_free,
+	.legacy_cftypes	= schedtune_compat_files,
+	.early_init	= 1,
+};
+#endif /* !CONFIG_SCHED_TUNE && CONFIG_PELT_COMPATIBILITY_LAYER */
+
 #endif	/* CONFIG_CGROUP_SCHED */
 
 void dump_cpu_task(int cpu)
