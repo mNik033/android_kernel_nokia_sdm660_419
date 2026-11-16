@@ -2030,15 +2030,6 @@ static void __init rcu_organize_nocb_kthreads(void)
 	}
 }
 
-/*
- * Return the number of RCU callbacks still queued from the specified
- * CPU, which must be a nocbs CPU.
- */
-static unsigned long rcu_get_n_cbs_nocb_cpu(struct rcu_data *rdp)
-{
-	return atomic_long_read(&rdp->nocb_q_count);
-}
-
 #else /* #ifdef CONFIG_RCU_NOCB_CPU */
 
 /* No ->nocb_lock to acquire.  */
@@ -2096,11 +2087,6 @@ static void rcu_spawn_cpu_nocb_kthread(int cpu)
 
 static void __init rcu_spawn_nocb_kthreads(void)
 {
-}
-
-static unsigned long rcu_get_n_cbs_nocb_cpu(struct rcu_data *rdp)
-{
-	return 0;
 }
 
 #endif /* #else #ifdef CONFIG_RCU_NOCB_CPU */
