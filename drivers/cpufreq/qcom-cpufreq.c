@@ -16,6 +16,7 @@
 #include <linux/cpumask.h>
 #include <linux/suspend.h>
 #include <linux/clk.h>
+#include <linux/clk/qcom.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
@@ -122,6 +123,25 @@ static unsigned int msm_cpufreq_resolve_freq(struct cpufreq_policy *policy,
 	return freq;
 }
 
+static unsigned int msm_cpufreq_fast_switch(struct cpufreq_policy *policy,
+					    unsigned int target_freq)
+{
+	int index;
+	unsigned int freq;
+
+	if (unlikely(READ_ONCE(per_cpu(suspend_data, policy->cpu).device_suspended)))
+		return 0;
+
+	index = cpufreq_frequency_table_target(policy, target_freq,
+					       CPUFREQ_RELATION_L);
+	freq = policy->freq_table[index].frequency;
+
+	if (clk_osm_fast_set_rate(cpu_clk[policy->cpu], freq * 1000UL))
+		return 0;
+
+	return freq;
+}
+
 static int msm_cpufreq_verify(struct cpufreq_policy *policy)
 {
 	cpufreq_verify_within_limits(policy, policy->cpuinfo.min_freq,
@@ -176,6 +196,8 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 			policy->cpu, cur_freq, table[index].frequency);
 	policy->cur = table[index].frequency;
 	policy->dvfs_possible_from_any_cpu = true;
+	if (clk_osm_is_fast_switch(cpu_clk[policy->cpu]))
+		policy->fast_switch_possible = true;
 
 	return 0;
 }
@@ -242,9 +264,10 @@ static int msm_cpufreq_suspend(void)
 
 	for_each_possible_cpu(cpu) {
 		mutex_lock(&per_cpu(suspend_data, cpu).suspend_mutex);
-		per_cpu(suspend_data, cpu).device_suspended = 1;
+		WRITE_ONCE(per_cpu(suspend_data, cpu).device_suspended, 1);
 		mutex_unlock(&per_cpu(suspend_data, cpu).suspend_mutex);
 	}
+	synchronize_rcu();
 
 	return NOTIFY_DONE;
 }
@@ -255,7 +278,7 @@ static int msm_cpufreq_resume(void)
 	struct cpufreq_policy policy;
 
 	for_each_possible_cpu(cpu) {
-		per_cpu(suspend_data, cpu).device_suspended = 0;
+		WRITE_ONCE(per_cpu(suspend_data, cpu).device_suspended, 0);
 	}
 
 	/*
@@ -336,6 +359,7 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.verify		= msm_cpufreq_verify,
 	.target		= msm_cpufreq_target,
 	.resolve_freq	= msm_cpufreq_resolve_freq,
+	.fast_switch	= msm_cpufreq_fast_switch,
 	.get		= msm_cpufreq_get_freq,
 	.name		= "msm",
 	.attr		= msm_freq_attr,

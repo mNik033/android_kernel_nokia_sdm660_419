@@ -27,6 +27,7 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <soc/qcom/scm.h>
+#include <linux/clk/qcom.h>
 #include <dt-bindings/clock/qcom,cpu-osm.h>
 
 #include "common.h"
@@ -673,8 +674,7 @@ static int clk_osm_search_table(struct osm_entry *table, int entries, long rate)
 	return -EINVAL;
 }
 
-static int clk_osm_set_rate(struct clk_hw *hw, unsigned long rate,
-				    unsigned long parent_rate)
+static int __clk_osm_set_rate(struct clk_hw *hw, unsigned long rate)
 {
 	struct clk_osm *cpuclk = to_clk_osm(hw);
 	int index = 0;
@@ -721,6 +721,12 @@ static int clk_osm_set_rate(struct clk_hw *hw, unsigned long rate,
 	return 0;
 }
 
+static int clk_osm_set_rate(struct clk_hw *hw, unsigned long rate,
+				    unsigned long parent_rate)
+{
+	return __clk_osm_set_rate(hw, rate);
+}
+
 static int clk_osm_acd_init(struct clk_osm *c);
 
 static int clk_osm_enable(struct clk_hw *hw)
@@ -758,6 +764,8 @@ static unsigned long clk_osm_recalc_rate(struct clk_hw *hw,
 	int index = 0;
 
 	index = clk_osm_read_reg(cpuclk, DCVS_PERF_STATE_DESIRED_REG);
+	if (index < 0 || index >= cpuclk->num_entries)
+		return 0;
 
 	pr_debug("%s: Index %d, freq %ld\n", __func__, index,
 				cpuclk->osm_table[index].frequency);
@@ -827,12 +835,14 @@ static struct clk_init_data osm_clks_init[] = {
 		.parent_names = (const char *[]){ "cxo_a" },
 		.num_parents = 1,
 		.ops = &clk_ops_cpu_osm_660,
+		.flags = CLK_GET_RATE_NOCACHE,
 	},
 	[1] = {
 		.name = "perfcl_clk",
 		.parent_names = (const char *[]){ "cxo_a" },
 		.num_parents = 1,
 		.ops = &clk_ops_cpu_osm_660,
+		.flags = CLK_GET_RATE_NOCACHE,
 	},
 };
 
@@ -847,6 +857,25 @@ static struct clk_osm perfcl_clk = {
 	.cpu_reg_mask = 0x103,
 	.hw.init = &osm_clks_init[1],
 };
+
+bool clk_osm_is_fast_switch(struct clk *clk)
+{
+	struct clk_hw *hw = __clk_get_hw(clk);
+
+	return hw == &pwrcl_clk.hw || hw == &perfcl_clk.hw;
+}
+EXPORT_SYMBOL_GPL(clk_osm_is_fast_switch);
+
+int clk_osm_fast_set_rate(struct clk *clk, unsigned long rate)
+{
+	struct clk_hw *hw = __clk_get_hw(clk);
+
+	if (hw != &pwrcl_clk.hw && hw != &perfcl_clk.hw)
+		return -EINVAL;
+
+	return __clk_osm_set_rate(hw, rate);
+}
+EXPORT_SYMBOL_GPL(clk_osm_fast_set_rate);
 
 static struct clk_hw *osm_qcom_clk_hws[] = {
 	[SYS_APCSAUX_CLK_GCC] = &sys_apcsaux_clk_gcc.hw,

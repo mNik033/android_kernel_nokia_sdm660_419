@@ -23,4 +23,18 @@ void qcom_clk_dump(struct clk *clk, struct regulator *regulator,
 void qcom_clk_bulk_dump(int num_clks, struct clk_bulk_data *clks,
 			struct regulator *regulator, bool calltrace);
 
+#ifdef CONFIG_CLOCK_CPU_OSM_660
+bool clk_osm_is_fast_switch(struct clk *clk);
+int clk_osm_fast_set_rate(struct clk *clk, unsigned long rate);
+#else
+static inline bool clk_osm_is_fast_switch(struct clk *clk)
+{
+	return false;
+}
+static inline int clk_osm_fast_set_rate(struct clk *clk, unsigned long rate)
+{
+	return -ENOTSUPP;
+}
+#endif
+
 #endif  /* __LINUX_CLK_QCOM_H_ */
