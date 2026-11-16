@@ -118,8 +118,13 @@ static bool sugov_should_update_freq(struct sugov_policy *sg_policy, u64 time)
 	 * must be determined before a decision can be made to rate limit the
 	 * frequency change, hence the rate limit check is bypassed here.
 	 */
-	if (arch_scale_freq_invariant())
+	if (arch_scale_freq_invariant()) {
+		if (!sg_policy->policy->fast_switch_enabled &&
+		    (s64)(time - sg_policy->last_freq_update_time) <
+		    (sg_policy->freq_update_delay_ns >> 2))
+			return false;
 		return true;
+	}
 
 	return !sugov_should_rate_limit(sg_policy, time);
 }
@@ -622,8 +627,38 @@ rate_limit_us_store(struct gov_attr_set *attr_set, const char *buf, size_t count
 
 static struct governor_attr rate_limit_us = __ATTR_RW(rate_limit_us);
 
+static ssize_t sugov_compat_show(struct gov_attr_set *attr_set, char *buf)
+{
+	return sprintf(buf, "0\n");
+}
+
+static ssize_t sugov_compat_store(struct gov_attr_set *attr_set,
+				  const char *buf, size_t count)
+{
+	return count;
+}
+
+static struct governor_attr up_rate_limit_us =
+	__ATTR(up_rate_limit_us, 0644, rate_limit_us_show, sugov_compat_store);
+static struct governor_attr down_rate_limit_us =
+	__ATTR(down_rate_limit_us, 0644, rate_limit_us_show, sugov_compat_store);
+static struct governor_attr hispeed_load =
+	__ATTR(hispeed_load, 0644, sugov_compat_show, sugov_compat_store);
+static struct governor_attr hispeed_freq =
+	__ATTR(hispeed_freq, 0644, sugov_compat_show, sugov_compat_store);
+static struct governor_attr rtg_boost_freq =
+	__ATTR(rtg_boost_freq, 0644, sugov_compat_show, sugov_compat_store);
+static struct governor_attr pl =
+	__ATTR(pl, 0644, sugov_compat_show, sugov_compat_store);
+
 static struct attribute *sugov_attributes[] = {
 	&rate_limit_us.attr,
+	&up_rate_limit_us.attr,
+	&down_rate_limit_us.attr,
+	&hispeed_load.attr,
+	&hispeed_freq.attr,
+	&rtg_boost_freq.attr,
+	&pl.attr,
 	NULL
 };
 
