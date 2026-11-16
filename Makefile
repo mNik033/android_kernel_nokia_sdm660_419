@@ -718,7 +718,7 @@ ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS   += -Os
 else ifdef CONFIG_CC_IS_CLANG
 KBUILD_CFLAGS   += -mllvm -hot-cold-split=true
-KBUILD_CFLAGS   += -O3 -march=armv8-a+crc+crypto
+KBUILD_CFLAGS   += -O3 -march=armv8-a+crc+crypto $(call cc-option,-mtune=cortex-a73)
 KBUILD_AFLAGS   += -O3 -march=armv8-a+crc+crypto
 KBUILD_LDFLAGS  += -O3 --plugin-opt=O3
 else
