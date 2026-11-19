@@ -1434,7 +1434,7 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
 	struct msm_sensor_power_setting *power_setting = NULL;
 
 #if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-    pr_err("wbl msm_camera_power_up +");
+    pr_debug("wbl msm_camera_power_up +\n");
 #endif
 
 	CDBG("%s:%d\n", __func__, __LINE__);
@@ -1559,7 +1559,7 @@ int msm_camera_power_up(struct msm_camera_power_ctrl_t *ctrl,
             goto power_up_failed;
             }
             #endif
-            pr_err("wbl %s vreg index val =%ld  gpio_num=%d\n", __func__,
+            pr_debug("wbl %s vreg index val =%ld  gpio_num=%d\n", __func__,
                     power_setting->config_val,power_setting->seq_val);
             tca6416_write_ker(power_setting->seq_val,power_setting->config_val,power_setting->delay);
 
@@ -1681,7 +1681,7 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 	struct msm_sensor_power_setting *ps;
 #if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
     //struct msm_sensor_power_setting *power_setting = NULL;
-    pr_err("wbl msm_camera_power_down +");
+    pr_debug("wbl msm_camera_power_down +\n");
 #endif
 
 	CDBG("%s:%d\n", __func__, __LINE__);
@@ -1774,7 +1774,7 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
             goto power_up_failed;
             }
             #endif
-            pr_err("wbl %s vreg index val =%ld  gpio_num=%d\n", __func__,
+            pr_debug("wbl %s vreg index val =%ld  gpio_num=%d\n", __func__,
                     pd->config_val,pd->seq_val);
             tca6416_write_ker(pd->seq_val,pd->config_val,pd->delay);
 

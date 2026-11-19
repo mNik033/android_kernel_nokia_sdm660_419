@@ -1215,7 +1215,7 @@ CSID_TG:
 		slave_info->bypass_video_node_creation;
 
 #if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-	pr_err("%s wbl E slave_info->sensor_name = %s \n", __func__, slave_info->sensor_name);
+	pr_debug("%s wbl E slave_info->sensor_name = %s \n", __func__, slave_info->sensor_name);
 #ifdef FTM
 	/* Add for FIH test */
 	if(!strcmp(slave_info->sensor_name, "s5k2l7sa_s2p"))
@@ -1245,8 +1245,8 @@ CSID_TG:
 		g_camera_ping |= CAMERA_MASK_HI846;
 	/* FIH-Binn-Add for TAS FAP test -00+}*/
 	
-	pr_err("%s wbl E slave_info->sensor_name = %s \n", __func__, slave_info->sensor_name);
-	pr_err("%s wbl E g_camera_ping = 0x%x \n", __func__, g_camera_ping);
+	pr_debug("%s wbl E slave_info->sensor_name = %s \n", __func__, slave_info->sensor_name);
+	pr_debug("%s wbl E g_camera_ping = 0x%x \n", __func__, g_camera_ping);
 #endif
 #endif
 
