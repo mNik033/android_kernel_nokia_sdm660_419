@@ -624,6 +624,8 @@ static void verity_prefetch_io(struct work_struct *work)
 				cluster = 1 << __fls(cluster);
 
 			hash_block_start &= ~(sector_t)(cluster - 1);
+			if (unlikely(hash_block_start < v->hash_level_block[i]))
+				hash_block_start = v->hash_level_block[i];
 			hash_block_end |= cluster - 1;
 			if (unlikely(hash_block_end >= v->hash_blocks))
 				hash_block_end = v->hash_blocks - 1;
@@ -632,9 +634,8 @@ no_prefetch_cluster:
 		// for emmc, it is more efficient to send bigger read
 		prefetch_size = max((sector_t)CONFIG_DM_VERITY_HASH_PREFETCH_MIN_SIZE,
 			hash_block_end - hash_block_start + 1);
-		if ((hash_block_start + prefetch_size) >= (v->hash_start + v->hash_blocks)) {
-			prefetch_size = hash_block_end - hash_block_start + 1;
-		}
+		if (prefetch_size > v->hash_blocks - hash_block_start)
+			prefetch_size = v->hash_blocks - hash_block_start;
 		dm_bufio_prefetch(v->bufio, hash_block_start,
 				  prefetch_size);
 	}
