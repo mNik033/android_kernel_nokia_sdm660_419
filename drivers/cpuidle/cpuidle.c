@@ -21,6 +21,7 @@
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
 #include <linux/module.h>
+#include <linux/smp.h>
 #include <linux/suspend.h>
 #include <linux/tick.h>
 #include <trace/events/power.h>
@@ -37,6 +38,24 @@ LIST_HEAD(cpuidle_detected_devices);
 static int enabled_devices;
 static int off __read_mostly;
 static int initialized __read_mostly;
+
+#ifdef CONFIG_SMP
+static atomic_t idled = ATOMIC_INIT(0);
+
+#if NR_CPUS > 32
+#error idled CPU mask not big enough for NR_CPUS
+#endif
+
+void cpuidle_set_idle_cpu(unsigned int cpu)
+{
+	atomic_or(BIT(cpu), &idled);
+}
+
+void cpuidle_clear_idle_cpu(unsigned int cpu)
+{
+	atomic_andnot(BIT(cpu), &idled);
+}
+#endif
 
 int cpuidle_disabled(void)
 {
@@ -663,21 +682,21 @@ EXPORT_SYMBOL_GPL(cpuidle_register);
 
 static void wake_up_idle_cpus(void *v)
 {
-	int cpu;
 	struct cpumask cpus;
+	unsigned long idle_mask;
+
+	idle_mask = (unsigned int)atomic_read(&idled);
+	if (!idle_mask)
+		return;
 
 	preempt_disable();
-	if (v) {
-		cpumask_andnot(&cpus, v, cpu_isolated_mask);
-		cpumask_and(&cpus, &cpus, cpu_online_mask);
-	} else
-		cpumask_andnot(&cpus, cpu_online_mask, cpu_isolated_mask);
-
-	for_each_cpu(cpu, &cpus) {
-		if (cpu == smp_processor_id())
-			continue;
-		wake_up_if_idle(cpu);
-	}
+	cpumask_andnot(&cpus, cpu_online_mask, cpu_isolated_mask);
+	if (v)
+		cpumask_and(&cpus, &cpus, v);
+	cpumask_and(&cpus, &cpus, to_cpumask(&idle_mask));
+	cpumask_clear_cpu(smp_processor_id(), &cpus);
+	if (!cpumask_empty(&cpus))
+		arch_send_wakeup_ipi_mask(&cpus);
 	preempt_enable();
 }
 
