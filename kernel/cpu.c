@@ -26,6 +26,7 @@
 #include <linux/lockdep.h>
 #include <linux/tick.h>
 #include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/nmi.h>
 #include <linux/smpboot.h>
 #include <linux/relay.h>
@@ -1102,8 +1103,18 @@ out:
 
 static int cpu_down_maps_locked(unsigned int cpu, enum cpuhp_state target)
 {
+	cpumask_t newmask;
+
 	if (cpu_hotplug_disabled)
 		return -EBUSY;
+
+	cpumask_andnot(&newmask, cpu_online_mask, cpumask_of(cpu));
+
+	/* One big cluster CPU and one little cluster CPU must remain online */
+	if (!cpumask_intersects(&newmask, cpu_perf_mask) ||
+	    !cpumask_intersects(&newmask, cpu_lp_mask))
+		return -EINVAL;
+
 	return _cpu_down(cpu, 0, target);
 }
 
@@ -1349,6 +1360,7 @@ int freeze_secondary_cpus(int primary)
 	 * with the userspace trying to use the CPU hotplug at the same time
 	 */
 	cpumask_clear(frozen_cpus);
+	unaffine_perf_irqs();
 
 	pr_info("Disabling non-boot CPUs ...\n");
 	for_each_online_cpu(cpu) {
@@ -1431,6 +1443,7 @@ void enable_nonboot_cpus(void)
 	arch_enable_nonboot_cpus_end();
 
 	cpumask_clear(frozen_cpus);
+	reaffine_perf_irqs();
 out:
 	cpu_maps_update_done();
 }

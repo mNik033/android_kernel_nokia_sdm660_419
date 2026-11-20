@@ -3,6 +3,7 @@
 #define _LINUX_KTHREAD_H
 /* Simple interface for creating and stopping kernel threads without mess. */
 #include <linux/err.h>
+#include <linux/cpumask.h>
 #include <linux/sched.h>
 
 __printf(4, 5)
@@ -49,6 +50,24 @@ bool kthread_is_per_cpu(struct task_struct *k);
 		= kthread_create(threadfn, data, namefmt, ## __VA_ARGS__); \
 	if (!IS_ERR(__k))						   \
 		wake_up_process(__k);					   \
+	__k;								   \
+})
+
+/**
+ * kthread_run_perf_critical - create and wake a performance-critical thread.
+ *
+ * Same as kthread_run(), but binds the thread to cpu_perf_mask and marks it
+ * with PF_PERF_CRITICAL.
+ */
+#define kthread_run_perf_critical(threadfn, data, namefmt, ...)		   \
+({									   \
+	struct task_struct *__k						   \
+		= kthread_create(threadfn, data, namefmt, ## __VA_ARGS__); \
+	if (!IS_ERR(__k)) {						   \
+		__k->flags |= PF_PERF_CRITICAL;				   \
+		kthread_bind_mask(__k, cpu_perf_mask);			   \
+		wake_up_process(__k);					   \
+	}								   \
 	__k;								   \
 })
 
