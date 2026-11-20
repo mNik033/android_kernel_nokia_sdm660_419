@@ -17,6 +17,7 @@
 #include <linux/mutex.h>
 #include <linux/rbtree.h>
 #include <linux/sched.h>
+#include <linux/spinlock.h>
 #include <linux/kthread.h>
 #include <linux/shrinker.h>
 #include <linux/types.h>
@@ -418,7 +419,7 @@ ion_secure_carveout_heap_create(struct ion_platform_heap *heap);
  * @count:		total number of pages/items in the pool
  * @high_items:		list of highmem items
  * @low_items:		list of lowmem items
- * @mutex:		lock protecting this struct and especially the count
+ * @lock:		lock protecting this struct and especially the count
  *			item list
  * @gfp_mask:		gfp_mask to use from alloc
  * @order:		order of pages in the pool
@@ -440,7 +441,7 @@ struct ion_page_pool {
 	struct list_head low_items;
 	ktime_t last_low_watermark_ktime;
 	/* Protect the pool */
-	struct mutex mutex;
+	spinlock_t lock;
 	gfp_t gfp_mask;
 	unsigned int order;
 	struct plist_node list;
