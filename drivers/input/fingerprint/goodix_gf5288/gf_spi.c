@@ -754,7 +754,7 @@ static int gf_probe(struct platform_device *pdev)
 
 	fp_wakelock = wakeup_source_register(NULL, "fp_wakelock");
 	status = request_threaded_irq(gf_dev->irq, NULL, gf_irq,
-			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+			IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_PERF_CRITICAL,
 			"gf", gf_dev);
 
 	if (status) {
