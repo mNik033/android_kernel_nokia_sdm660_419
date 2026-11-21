@@ -7560,6 +7560,9 @@ int sched_unisolate_cpu_unlocked(int cpu)
 		/* Kick CPU to immediately do load balancing */
 		if (!atomic_fetch_or(NOHZ_KICK_MASK, nohz_flags(cpu)))
 			smp_send_reschedule(cpu);
+
+		if (cpumask_test_cpu(cpu, cpu_perf_mask))
+			reaffine_perf_irqs();
 	}
 
 out:

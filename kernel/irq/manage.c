@@ -1246,15 +1246,17 @@ static void add_desc_to_perf_list(struct irq_desc *desc)
 
 static void affine_one_perf_irq(struct irq_desc *desc)
 {
+	struct cpumask avail_perf_mask;
 	int cpu;
 
-	if (cpumask_any_and(cpu_perf_mask, cpu_online_mask) >= nr_cpu_ids)
+	cpumask_andnot(&avail_perf_mask, cpu_perf_mask, cpu_isolated_mask);
+	cpumask_and(&avail_perf_mask, &avail_perf_mask, cpu_online_mask);
+	if (cpumask_empty(&avail_perf_mask))
 		return;
 
-	/* Balance the performance-critical IRQs across all perf CPUs */
+	/* Balance the performance-critical IRQs across all available perf CPUs */
 	while (1) {
-		cpu = cpumask_next_and(perf_cpu_index, cpu_perf_mask,
-				       cpu_online_mask);
+		cpu = cpumask_next(perf_cpu_index, &avail_perf_mask);
 		if (cpu < nr_cpu_ids)
 			break;
 		perf_cpu_index = -1;
