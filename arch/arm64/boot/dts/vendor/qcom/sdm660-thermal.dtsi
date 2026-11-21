@@ -651,7 +651,8 @@
 			skin_cpu4 {
 				trip = <&gold_trip>;
 					/* throttle from fmax to 1747200KHz */
-				cooling-device = <&CPU4 THERMAL_NO_LIMIT 5>;
+				cooling-device = <&CPU4 THERMAL_NO_LIMIT
+							(THERMAL_MAX_LIMIT-1)>;
 			};
 		};
 	};

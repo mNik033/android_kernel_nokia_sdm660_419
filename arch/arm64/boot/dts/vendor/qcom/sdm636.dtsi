@@ -76,3 +76,24 @@
 	/* Update GPU chip ID*/
 	qcom,chipid = <0x05000900>;
 };
+
+/* Adreno 509 on SDM636 has fewer GPU power levels than SDM660 */
+&thermal_zones {
+	mpm-lowf {
+		cooling-maps {
+			gpu_vdd_cdev {
+				cooling-device = <&msm_gpu (THERMAL_MAX_LIMIT-2)
+							(THERMAL_MAX_LIMIT-2)>;
+			};
+		};
+	};
+
+	camera-lowf {
+		cooling-maps {
+			gpu_vdd_cdev {
+				cooling-device = <&msm_gpu (THERMAL_MAX_LIMIT-2)
+							(THERMAL_MAX_LIMIT-2)>;
+			};
+		};
+	};
+};
