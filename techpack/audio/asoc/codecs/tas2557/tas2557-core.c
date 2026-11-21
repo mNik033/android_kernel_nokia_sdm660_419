@@ -58,6 +58,9 @@
 #include <linux/crc8.h>
 #include <linux/fcntl.h>
 #include <linux/fs.h>
+#include <linux/blkdev.h>
+#include <linux/mount.h>
+#include <linux/pagemap.h>
 #include <asm/segment.h>
 
 #include "tas2557.h"
@@ -1591,13 +1594,11 @@ void tas2557_clear_firmware(struct TFirmware *pFirmware)
 /* |   fda              |   560KB    | */
 /* ----------------------------------  */
 
-#define FIH_E2P_PARTITION_DEVI     "/dev/block/bootdevice/by-name/deviceinfo"
 #define E2P_OFFSET_DEVI            36*1024    // 36K
 #define SNS_REG_MAGIC_V01     0x55AA
 #define SNS_REG_MAGIC_V02     0x5A5A
 #define SNS_REG_MAGIC_TAIL    0xA5A5
 
-static char fih_e2p_file[255]= FIH_E2P_PARTITION_DEVI;
 	unsigned char pfwBuffer[2048]={0};
 
 struct fih_sns_reg_info{
@@ -1616,158 +1617,129 @@ struct fih_sns_reg_info_tail{
 // Description: 
 //      Write calibration data into FIH device_info
 // ----------------------------------------------------------------------------- 
+static int tas2557_read_bdev(struct block_device *bdev, loff_t offset,
+			     void *buf, size_t len)
+{
+	u8 *dst = buf;
+
+	if (offset < 0 || len > i_size_read(bdev->bd_inode) - offset)
+		return -EINVAL;
+
+	while (len > 0) {
+		pgoff_t index = offset >> PAGE_SHIFT;
+		size_t page_off = offset_in_page(offset);
+		size_t chunk = min_t(size_t, len, PAGE_SIZE - page_off);
+		struct page *page;
+
+		page = read_mapping_page(bdev->bd_inode->i_mapping, index,
+					 NULL);
+		if (IS_ERR(page))
+			return PTR_ERR(page);
+		if (PageError(page)) {
+			put_page(page);
+			return -EIO;
+		}
+
+		memcpy(dst, (u8 *)page_address(page) + page_off, chunk);
+		put_page(page);
+
+		dst += chunk;
+		offset += chunk;
+		len -= chunk;
+	}
+
+	return 0;
+}
+
 static int tas2557_load_calibration(struct tas2557_priv *pTAS2557, char *pFileName)
 {
-#if 0 // read calibration data from data/tas2557_cal.bin
 	int nResult = 0;
-	struct file *nFile = NULL;
-	mm_segment_t fs;
-	unsigned char pBuffer[1000];
-	int nSize = 0;
-	loff_t pos = 0;
+	struct fih_sns_reg_info reginfo;
+	struct fih_sns_reg_info_tail reginfo_tail;
+	struct block_device *bdev;
+	dev_t devt = 0;
+	int retry = 0;
 
 	dev_dbg(pTAS2557->dev, "%s:\n", __func__);
 
-	fs = get_fs();
-	set_fs(KERNEL_DS);
-	nFile = filp_open(pFileName, O_RDONLY, 0);
-
-	dev_info(pTAS2557->dev, "TAS2557 calibration file = %s\n", pFileName);
-	if (IS_ERR(nFile)) {
-		if (PTR_ERR(nFile) == -ENOENT)
-			dev_err(pTAS2557->dev, "TAS2557 calibration file %s is not exit\n", pFileName);
-		else
-			dev_err(pTAS2557->dev, "TAS2557 cannot open calibration file: %s errno:%d\n", pFileName, (int)PTR_ERR(nFile));
-	} else {
-		pos = nFile->f_pos;
-		nSize = vfs_read(nFile, pBuffer, 1000, &pos);
-		filp_close(nFile, NULL);
+	while (!(devt = name_to_dev_t("PARTLABEL=deviceinfo")) && retry < 20) {
+		msleep(50);
+		retry++;
 	}
-	set_fs(fs);
+	if (!devt) {
+		dev_err(pTAS2557->dev, "deviceinfo partition not found\n");
+		return -ENODEV;
+	}
 
-	if (!nSize)
-	{
-		dev_err(pTAS2557->dev, "Calibrarion data = 0\r\n");
-		goto end;
+	bdev = blkdev_get_by_dev(devt, FMODE_READ, NULL);
+	if (IS_ERR(bdev)) {
+		nResult = PTR_ERR(bdev);
+		dev_err(pTAS2557->dev, "Failed to open deviceinfo bdev: %d\n",
+			nResult);
+		return nResult;
+	}
+
+	nResult = tas2557_read_bdev(bdev, E2P_OFFSET_DEVI, &reginfo,
+				    sizeof(reginfo));
+	if (nResult) {
+		dev_err(pTAS2557->dev, "Failed to read E2P header: %d\n",
+			nResult);
+		goto out_put;
+	}
+
+	dev_info(pTAS2557->dev, "Magic=0x%x,Cal_Info=0x%x,Len=%u\n",
+		 reginfo.Magic, reginfo.Cal_Info, reginfo.len);
+
+	if (reginfo.Magic != SNS_REG_MAGIC_V01) {
+		dev_err(pTAS2557->dev, "E2P wrong header magic: 0x%x\n",
+			reginfo.Magic);
+		nResult = -EINVAL;
+		goto out_put;
+	}
+
+	if (!reginfo.len || reginfo.len > sizeof(pfwBuffer)) {
+		dev_err(pTAS2557->dev, "E2P invalid cal length: %u\n",
+			reginfo.len);
+		nResult = -EINVAL;
+		goto out_put;
+	}
+
+	nResult = tas2557_read_bdev(bdev, E2P_OFFSET_DEVI + 64, pfwBuffer,
+				    reginfo.len);
+	if (nResult) {
+		dev_err(pTAS2557->dev, "Failed to read E2P data: %d\n",
+			nResult);
+		goto out_put;
+	}
+
+	nResult = tas2557_read_bdev(bdev, E2P_OFFSET_DEVI + 64 + reginfo.len,
+				    &reginfo_tail, sizeof(reginfo_tail));
+	if (nResult) {
+		dev_err(pTAS2557->dev, "Failed to read E2P tail: %d\n",
+			nResult);
+		goto out_put;
+	}
+
+	if (reginfo_tail.Magic != SNS_REG_MAGIC_TAIL) {
+		dev_err(pTAS2557->dev, "E2P wrong tail magic: 0x%x\n",
+			reginfo_tail.Magic);
+		nResult = -EINVAL;
+		goto out_put;
 	}
 
 	tas2557_clear_firmware(pTAS2557->mpCalFirmware);
-	dev_info(pTAS2557->dev, "TAS2557 calibration file size = %d\n", nSize);
-	nResult = fw_parse(pTAS2557, pTAS2557->mpCalFirmware, pBuffer, nSize);
-
+	dev_info(pTAS2557->dev, "TAS2557 calibration size = %u\n", reginfo.len);
+	nResult = fw_parse(pTAS2557, pTAS2557->mpCalFirmware, pfwBuffer,
+			   reginfo.len);
 	if (nResult)
-		dev_err(pTAS2557->dev, "TAS2557 calibration file is corrupt\n");
-	else
-		dev_info(pTAS2557->dev, "TAS2557 calibration: %d calibrations\n", pTAS2557->mpCalFirmware->mnCalibrations);
-
-end:
-	return nResult;
-
-#else //read calibration data from e2p
-
-	int nResult = 0;
-	int nSize = 0;
-  struct fih_sns_reg_info reginfo;
-  struct fih_sns_reg_info_tail reginfo_tail;
-  //int fd = -1;
-  struct file *fp = NULL;
-  mm_segment_t oldfs = get_fs();
-  loff_t pos = 0;
-  int len = 0;
-  int retry = 0;
-
-  dev_dbg(pTAS2557->dev, "%s:\n", __func__);
-  
-  set_fs(KERNEL_DS);
-  do
-  {
-	//fp = filp_open(fih_e2p_file, O_RDWR |O_NONBLOCK, 0);
-	fp = filp_open(fih_e2p_file, O_RDONLY |O_NONBLOCK, 0);
-	msleep(50);
-	retry++;
-  }while(IS_ERR(fp)&&(retry<40));
-	dev_info(pTAS2557->dev, "%s:retry(%d)\n", __func__,retry);
-	if (IS_ERR(fp)) {
-		dev_err(pTAS2557->dev, "Open file %s Error\r\n", fih_e2p_file);
-		set_fs(oldfs);
-    goto end;
-	}
-
-  fp->f_op->llseek(fp, E2P_OFFSET_DEVI, SEEK_SET);
-  pos = fp->f_pos;
-  len = vfs_read(fp, (unsigned char __user *)&reginfo, sizeof(reginfo), &pos);
-  
-  //printf("Magic=%x,Cal_Info=%x,Len=%d\r\n",reginfo.Magic,reginfo.Cal_Info,reginfo.len);
-  dev_info(pTAS2557->dev, "Magic=0x%x,Cal_Info=0x%x,Len=%d\r\n",reginfo.Magic,reginfo.Cal_Info,reginfo.len);
-    
-  fp->f_op->llseek(fp, E2P_OFFSET_DEVI+64, SEEK_SET);
-  pos = fp->f_pos;
-  
-  if (reginfo.len > 0)
-  {
-      nSize = vfs_read(fp, (unsigned char __user *)&pfwBuffer, reginfo.len, &pos);
-      if (nSize != reginfo.len)
-      {
-      	  dev_err(pTAS2557->dev, "Open E2P file length:%d, only read data length:%d\r\n", reginfo.len, nSize);
-      	  filp_close(fp, NULL);
-	        set_fs(oldfs);
-          goto end;	  
-      }
-      
-
-#if 0 //dump calibration data     
-      {
-      	  int i=0;
-      	  
-      	  for (i=0; i<((nSize/16)+1); i++)
-      	  {
-      	  	   dev_info(pTAS2557->dev, "0x%08x: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\r\n", i*16, 
-      	  	           pfwBuffer[i*16], pfwBuffer[i*16+1], pfwBuffer[i*16+2], pfwBuffer[i*16+3], pfwBuffer[i*16+4], pfwBuffer[i*16+5], pfwBuffer[i*16+6], pfwBuffer[i*16+7],
-      	  	           pfwBuffer[i*16+8], pfwBuffer[i*16+9], pfwBuffer[i*16+10], pfwBuffer[i*16+11], pfwBuffer[i*16+12], pfwBuffer[i*16+13], pfwBuffer[i*16+14], pfwBuffer[i*16+15]);
-      	  }
-      }
-#endif
-      
-      dev_info(pTAS2557->dev, "E2P file read successfully (nSize:%d)\r\n", nSize);
-  }
-  
-  fp->f_op->llseek(fp, E2P_OFFSET_DEVI+64+reginfo.len, SEEK_SET);
-  pos = fp->f_pos;
-  len = vfs_read(fp, (unsigned char __user *)&reginfo_tail, sizeof(reginfo_tail), &pos);
-  //printf("Tail info1=%x\r\n",reginfo_tail.Magic);
-  dev_info(pTAS2557->dev, "Tail info1=0x%x\r\n",reginfo_tail.Magic);
-  
-  filp_close(fp, NULL);
-	set_fs(oldfs);
-
-  if (reginfo.Magic!=SNS_REG_MAGIC_V01)
-  {
-  	  dev_err(pTAS2557->dev, "Open E2P file fail: wrong tail Magic:0x%x \r\n", reginfo.Magic);
-      goto end;	  
-  }
-  
-  if (reginfo_tail.Magic!=SNS_REG_MAGIC_TAIL)
-  {
-  	  dev_err(pTAS2557->dev, "Open E2P file fail: wrong tail Magic:0x%x \r\n", reginfo_tail.Magic);
-      goto end;	  
-  }
-
-	tas2557_clear_firmware(pTAS2557->mpCalFirmware);
-	dev_info(pTAS2557->dev, "TAS2557 calibration file size = %d\n", nSize);
-	nResult = fw_parse(pTAS2557, pTAS2557->mpCalFirmware, pfwBuffer, nSize);
-
-	if (nResult)
-		dev_err(pTAS2557->dev, "TAS2557 calibration file is corrupt\n");
+		dev_err(pTAS2557->dev, "TAS2557 calibration data is corrupt\n");
 	else
 		dev_info(pTAS2557->dev, "TAS2557 calibration: %d calibrations\n",
-			pTAS2557->mpCalFirmware->mnCalibrations);
+			 pTAS2557->mpCalFirmware->mnCalibrations);
 
-end:
-
+out_put:
+	blkdev_put(bdev, FMODE_READ);
 	return nResult;
-	
-#endif
-
 }
 
 static bool tas2557_get_coefficient_in_block(struct tas2557_priv *pTAS2557,
