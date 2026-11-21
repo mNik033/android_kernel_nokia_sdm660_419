@@ -5784,6 +5784,11 @@ static const struct snd_kcontrol_new ext_ec_ref_mux_ul29 =
 		msm_route_ec_ref_rx_enum[0],
 		msm_routing_ec_ref_rx_get, msm_routing_ec_ref_rx_put);
 
+static const struct snd_kcontrol_new ext_ec_ref_mux_ul30 =
+	SOC_DAPM_ENUM_EXT("AUDIO_REF_EC_UL30 MUX Mux",
+		msm_route_ec_ref_rx_enum[0],
+		msm_routing_ec_ref_rx_get, msm_routing_ec_ref_rx_put);
+
 static int msm_routing_ext_ec_get(struct snd_kcontrol *kcontrol,
 				  struct snd_ctl_elem_value *ucontrol)
 {
@@ -12322,6 +12327,18 @@ static const struct snd_kcontrol_new quin_tdm_rx_1_mixer_controls[] = {
 	SOC_DOUBLE_EXT("MultiMedia22", SND_SOC_NOPM,
 	MSM_BACKEND_DAI_QUIN_TDM_RX_1,
 	MSM_FRONTEND_DAI_MULTIMEDIA22, 1, 0, msm_routing_get_audio_mixer,
+	msm_routing_put_audio_mixer),
+	SOC_DOUBLE_EXT("MultiMedia23", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_QUIN_TDM_RX_1,
+	MSM_FRONTEND_DAI_MULTIMEDIA23, 1, 0, msm_routing_get_audio_mixer,
+	msm_routing_put_audio_mixer),
+	SOC_DOUBLE_EXT("MultiMedia24", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_QUIN_TDM_RX_1,
+	MSM_FRONTEND_DAI_MULTIMEDIA24, 1, 0, msm_routing_get_audio_mixer,
+	msm_routing_put_audio_mixer),
+	SOC_DOUBLE_EXT("MultiMedia25", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_QUIN_TDM_RX_1,
+	MSM_FRONTEND_DAI_MULTIMEDIA25, 1, 0, msm_routing_get_audio_mixer,
 	msm_routing_put_audio_mixer),
 };
 
@@ -24895,6 +24912,8 @@ static const struct snd_soc_dapm_widget msm_qdsp6_widgets[] = {
 		&ext_ec_ref_mux_ul28),
 	SND_SOC_DAPM_MUX("AUDIO_REF_EC_UL29 MUX", SND_SOC_NOPM, 0, 0,
 		&ext_ec_ref_mux_ul29),
+	SND_SOC_DAPM_MUX("AUDIO_REF_EC_UL30 MUX", SND_SOC_NOPM, 0, 0,
+		&ext_ec_ref_mux_ul30),
 };
 
 #ifndef CONFIG_AUXPCM_DISABLE
@@ -30320,6 +30339,11 @@ static const struct snd_soc_dapm_route intercon_mi2s[] = {
 	{"AUDIO_REF_EC_UL29 MUX", "SEC_MI2S_TX", "SEC_MI2S_TX"},
 	{"AUDIO_REF_EC_UL29 MUX", "TERT_MI2S_TX", "TERT_MI2S_TX"},
 	{"AUDIO_REF_EC_UL29 MUX", "QUAT_MI2S_TX", "QUAT_MI2S_TX"},
+
+	{"AUDIO_REF_EC_UL30 MUX", "PRI_MI2S_TX", "PRI_MI2S_TX"},
+	{"AUDIO_REF_EC_UL30 MUX", "SEC_MI2S_TX", "SEC_MI2S_TX"},
+	{"AUDIO_REF_EC_UL30 MUX", "TERT_MI2S_TX", "TERT_MI2S_TX"},
+	{"AUDIO_REF_EC_UL30 MUX", "QUAT_MI2S_TX", "QUAT_MI2S_TX"},
 
 	{"VoiceMMode1_Tx Mixer", "PRI_TX_MMode1", "PRI_I2S_TX"},
 	{"VoiceMMode1_Tx Mixer", "PRI_MI2S_TX_MMode1", "PRI_MI2S_TX"},
