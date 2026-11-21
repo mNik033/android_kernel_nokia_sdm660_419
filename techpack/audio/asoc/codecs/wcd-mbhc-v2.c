@@ -26,31 +26,6 @@
 #include "wcd-mbhc-adc.h"
 #include <asoc/wcd-mbhc-v2-api.h>
 
-//2015.3.12, Add switch device for FTM request FAO-4
-#if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-#define LEGACY_SWITCH_DEV_SUPPORT
-#ifdef LEGACY_SWITCH_DEV_SUPPORT
-#include <linux/extcon.h>
-#include <../../../../drivers/extcon/extcon.h>
-#include <asm/atomic.h>
-
-struct h2w_info {
-	struct extcon_dev sdev;
-	atomic_t btn_state;
-	atomic_t hs_state;
-};
-static struct h2w_info *fih_hs;
-
-static ssize_t show_btn_state(struct device *dev,struct device_attribute *attr, char *buf)
-{
-	unsigned char btn_state;
-	btn_state = atomic_read(&fih_hs->btn_state);
-	return sprintf(buf, "%u\n", btn_state);
-}
-static DEVICE_ATTR(btn_state, S_IRUGO, show_btn_state, NULL);
-#endif
-#endif
-
 #if defined(CONFIG_LONGCHEER_SDM660_PROJS)
 extern bool spk_ext_pa_is_on;
 #endif
@@ -779,17 +754,6 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
 
-#if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-//Add switch device for FTM request FAO-4
-#ifdef LEGACY_SWITCH_DEV_SUPPORT
-		if(!mbhc->mbhc_cfg->fih_hs_support && fih_hs)
-		{
-			extcon_set_state(&fih_hs->sdev, EXTCON_JACK_HEADPHONE, mbhc->current_plug);
-			pr_info("%s: extcon_set_state %d\n", __func__, mbhc->current_plug);
-		}
-#endif
-#endif
-
 	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
 }
 EXPORT_SYMBOL(wcd_mbhc_report_plug);
@@ -1283,17 +1247,6 @@ static void wcd_btn_lpress_fn(struct work_struct *work)
 				mbhc->buttons_pressed, mbhc->buttons_pressed);
 	}
 
-#if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-//Add switch device for FTM request FAO-4
-#ifdef LEGACY_SWITCH_DEV_SUPPORT
-		if(!mbhc->mbhc_cfg->fih_hs_support && fih_hs)
-		{
-			atomic_set(&fih_hs->btn_state, 1);
-			pr_info("%s: switch_set_btn_state press(0x%x)\n", __func__, mbhc->buttons_pressed);
-		}
-#endif
-#endif
-
 	pr_debug("%s: leave\n", __func__);
 	mbhc->mbhc_cb->lock_sleep(mbhc, false);
 }
@@ -1412,16 +1365,6 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 				 __func__);
 			wcd_mbhc_jack_report(mbhc, &mbhc->button_jack,
 					0, mbhc->buttons_pressed);
-#if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-//Add switch device for FTM request FAO-4
-#ifdef LEGACY_SWITCH_DEV_SUPPORT
-			if(!mbhc->mbhc_cfg->fih_hs_support && fih_hs)
-			{
-				atomic_set(&fih_hs->btn_state, 0);
-				pr_info("%s: switch_set_btn_state release\n", __func__);
-			}
-#endif
-#endif
 		} else {
 			if (mbhc->in_swch_irq_handler) {
 				pr_debug("%s: Switch irq kicked in, ignore\n",
@@ -1433,31 +1376,11 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 						     &mbhc->button_jack,
 						     mbhc->buttons_pressed,
 						     mbhc->buttons_pressed);
-#if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-//Add switch device for FTM request FAO-4
-#ifdef LEGACY_SWITCH_DEV_SUPPORT
-				if(!mbhc->mbhc_cfg->fih_hs_support && fih_hs)
-				{
-					atomic_set(&fih_hs->btn_state, 1);
-					pr_info("%s: switch_set_btn_state press(0x%x)\n", __func__, mbhc->buttons_pressed);
-				}
-#endif
-#endif
 				pr_debug("%s: Reporting btn release\n",
 					 __func__);
 				wcd_mbhc_jack_report(mbhc,
 						&mbhc->button_jack,
 						0, mbhc->buttons_pressed);
-#if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-//Add switch device for FTM request FAO-4
-#ifdef LEGACY_SWITCH_DEV_SUPPORT
-				if(!mbhc->mbhc_cfg->fih_hs_support && fih_hs)
-				{
-					atomic_set(&fih_hs->btn_state, 0);
-					pr_info("%s: switch_set_btn_state release\n", __func__);
-				}
-#endif
-#endif
 			}
 		}
 		mbhc->buttons_pressed &= ~WCD_MBHC_JACK_BUTTON_MASK;
@@ -2118,45 +2041,6 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 			pr_err("%s: Skipping to read mbhc fw, 0x%pK %pK\n",
 				 __func__, mbhc->mbhc_fw, mbhc->mbhc_cal);
 	}
-
-#if defined(CONFIG_FIH_SDM630_SDM660_PROJS)
-//Add switch device for FTM request FAO-4
-#ifdef LEGACY_SWITCH_DEV_SUPPORT
-	/*Modify this function for MCS-4331 kernel_panic issue*/
-	if(!mbhc->mbhc_cfg->fih_hs_support)
-	{
-		int ret;
-		if (!fih_hs){
-			pr_info("%s: kzalloc fih_hs\n", __func__);
-			fih_hs = kzalloc(sizeof(struct h2w_info), GFP_KERNEL);
-			if (!fih_hs)
-				return -ENOMEM;
-			// /sys/class/switch/h2w/state to be updated.
-			// /sys/class/switch/h2w/btn_state to be updated.
-			atomic_set(&fih_hs->btn_state, 0);
-			atomic_set(&fih_hs->hs_state, 0);
-			fih_hs->sdev.name = "h2w";
-			ret = extcon_dev_register(&fih_hs->sdev);
-			if (!ret){
-				ret = device_create_file(&fih_hs->sdev.dev,&dev_attr_btn_state);
-				if(ret)
-				{
-					pr_err("%s: device_create_file btn_state fail %d!\n", __func__, ret);
-					extcon_dev_unregister(&fih_hs->sdev);
-					kzfree(fih_hs);
-				}
-			}
-			else	{
-				pr_err("%s: extcon_dev_register (%s) fail %d\n", __func__, fih_hs->sdev.name, ret);
-				kzfree(fih_hs);
-			}
-		}
-		else	{
-			pr_err("%s: fih_hs already exist with name(%s)\n", __func__, fih_hs->sdev.name);
-		}
-	}
-#endif
-#endif
 
 	if (mbhc_cfg->enable_usbc_analog && mbhc_cfg->fsa_enable) {
 		mbhc->fsa_nb.notifier_call = wcd_mbhc_usbc_ana_event_handler;
