@@ -182,10 +182,20 @@ static void mdss_dsi_pm_qos_add_request(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 
 	mutex_lock(&ctrl_pdata->shared_data->pm_qos_lock);
 	if (!ctrl_pdata->shared_data->pm_qos_req_cnt) {
-		pr_debug("%s: add request irq\n", __func__);
+		pr_debug("%s: add request\n", __func__);
 
-		mdss_dsi_pm_qos_request.type = PM_QOS_REQ_AFFINE_IRQ;
-		mdss_dsi_pm_qos_request.irq = irq_info->irq;
+		/*
+		 * DSI shares the MDSS IRQ line whose single affinity_notify
+		 * slot is owned by mdss_mdp_overlay's event_timer. Affine to
+		 * perf CPUs directly instead of PM_QOS_REQ_AFFINE_IRQ.
+		 */
+		if (!cpumask_empty(cpu_perf_mask)) {
+			mdss_dsi_pm_qos_request.type = PM_QOS_REQ_AFFINE_CORES;
+			cpumask_copy(&mdss_dsi_pm_qos_request.cpus_affine,
+				     cpu_perf_mask);
+		} else {
+			mdss_dsi_pm_qos_request.type = PM_QOS_REQ_ALL_CORES;
+		}
 		pm_qos_add_request(&mdss_dsi_pm_qos_request,
 			PM_QOS_CPU_DMA_LATENCY, PM_QOS_DEFAULT_VALUE);
 	}
