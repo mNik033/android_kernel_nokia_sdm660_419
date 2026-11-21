@@ -519,6 +519,11 @@ static int bcl_read_soc(void *data, int *val)
 		err = power_supply_get_property(batt_psy,
 				POWER_SUPPLY_PROP_CAPACITY, &ret);
 		if (err) {
+			if (err == -ENODATA || err == -EINVAL) {
+				pr_debug("battery percentage not ready:%d\n",
+					 err);
+				return 0;
+			}
 			pr_err("battery percentage read error:%d\n",
 				err);
 			return err;
