@@ -603,6 +603,14 @@ static void pm_qos_irq_notify(struct irq_affinity_notify *notify,
  * removal.
  */
 
+#ifdef CONFIG_SMP
+static inline bool pm_qos_irq_has_affinity(struct irq_desc *desc)
+{
+	return desc && !irqd_is_per_cpu(&desc->irq_data) &&
+		desc->irq_data.chip && desc->irq_data.chip->irq_set_affinity;
+}
+#endif
+
 void pm_qos_add_request(struct pm_qos_request *req,
 			int pm_qos_class, s32 value)
 {
@@ -623,13 +631,11 @@ void pm_qos_add_request(struct pm_qos_request *req,
 		}
 		break;
 #ifdef CONFIG_SMP
-	case PM_QOS_REQ_AFFINE_IRQ:
-		if (irq_can_set_affinity(req->irq)) {
-			struct irq_desc *desc = irq_to_desc(req->irq);
-			struct cpumask *mask;
+	case PM_QOS_REQ_AFFINE_IRQ: {
+		struct irq_desc *desc = irq_to_desc(req->irq);
 
-			if (!desc)
-				return;
+		if (pm_qos_irq_has_affinity(desc)) {
+			struct cpumask *mask;
 
 			/*
 			 * If the IRQ is not started, the effective affinity
@@ -653,6 +659,7 @@ void pm_qos_add_request(struct pm_qos_request *req,
 					req->irq);
 		}
 		break;
+	}
 #endif
 	default:
 		WARN(1, "Unknown request type %d\n", req->type);
@@ -669,8 +676,7 @@ void pm_qos_add_request(struct pm_qos_request *req,
 			     &req->node, PM_QOS_ADD_REQ, value, false);
 
 #ifdef CONFIG_SMP
-	if (req->type == PM_QOS_REQ_AFFINE_IRQ &&
-			irq_can_set_affinity(req->irq)) {
+	if (req->type == PM_QOS_REQ_AFFINE_IRQ) {
 		int ret = 0;
 
 		ret = irq_set_affinity_notifier(req->irq,
