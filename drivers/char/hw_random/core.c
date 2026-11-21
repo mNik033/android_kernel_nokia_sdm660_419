@@ -296,7 +296,6 @@ static const struct attribute_group *rng_dev_groups[];
 static struct miscdevice rng_miscdev = {
 	.minor		= HWRNG_MINOR,
 	.name		= RNG_MODULE_NAME,
-	.nodename	= "hwrng",
 	.fops		= &rng_chrdev_ops,
 	.groups		= rng_dev_groups,
 };
