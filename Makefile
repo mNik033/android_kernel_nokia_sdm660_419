@@ -900,8 +900,7 @@ lto-clang-flags	:= -flto
 endif
 lto-clang-flags += -fvisibility=default $(call cc-option, -fsplit-lto-unit)
 
-# Limit inlining across translation units to reduce binary size
-LD_FLAGS_LTO_CLANG := -mllvm -import-instr-limit=5 --lto-O3
+LD_FLAGS_LTO_CLANG := --lto-O3
 ifdef CONFIG_THINLTO
 LD_FLAGS_LTO_CLANG += --thinlto-jobs=$(shell nproc --all)
 endif
