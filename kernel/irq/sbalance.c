@@ -246,7 +246,8 @@ static void balance_irqs(void)
 
 	list_for_each_entry_rcu(bi, &bal_irq_list, node) {
 		/* Consider this IRQ for balancing if it's movable */
-		if (!__irq_can_set_affinity(bi->desc))
+		if (!__irq_can_set_affinity(bi->desc) ||
+		    irqd_has_set(&bi->desc->irq_data, IRQD_PERF_CRITICAL))
 			continue;
 
 		if (!update_irq_data(bi, &cpu))

@@ -7572,7 +7572,7 @@ int sched_unisolate_cpu_unlocked(int cpu)
 			smp_send_reschedule(cpu);
 
 		if (cpumask_test_cpu(cpu, cpu_perf_mask))
-			reaffine_perf_irqs();
+			reaffine_perf_irqs(true);
 	}
 
 out:

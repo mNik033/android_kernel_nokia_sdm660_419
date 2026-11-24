@@ -222,11 +222,11 @@ extern void irq_wake_thread(unsigned int irq, void *dev_id);
 #ifdef CONFIG_SMP
 extern void irq_set_perf_affinity(unsigned int irq);
 extern void unaffine_perf_irqs(void);
-extern void reaffine_perf_irqs(void);
+extern void reaffine_perf_irqs(bool from_hotplug);
 #else
 static inline void irq_set_perf_affinity(unsigned int irq) { }
 static inline void unaffine_perf_irqs(void) { }
-static inline void reaffine_perf_irqs(void) { }
+static inline void reaffine_perf_irqs(bool from_hotplug) { }
 #endif
 
 /* The following three functions are for the core kernel use only. */

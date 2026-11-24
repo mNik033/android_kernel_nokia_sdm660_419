@@ -144,8 +144,10 @@ extern int irq_do_set_affinity(struct irq_data *data,
 
 #ifdef CONFIG_SMP
 extern int irq_setup_affinity(struct irq_desc *desc);
+extern void setup_perf_irq_locked(struct irq_desc *desc);
 #else
 static inline int irq_setup_affinity(struct irq_desc *desc) { return 0; }
+static inline void setup_perf_irq_locked(struct irq_desc *desc) { }
 #endif
 
 /* Inline functions for support of irq chips on slow busses */
