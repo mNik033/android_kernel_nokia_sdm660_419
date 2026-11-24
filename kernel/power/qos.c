@@ -291,7 +291,7 @@ static inline int pm_qos_set_value_for_cpus(struct pm_qos_request *new_req,
 		new_req_cpus = *cpumask_bits(&new_req->cpus_affine);
 	}
 
-	if (new_action != PM_QOS_REMOVE_REQ) {
+	if (new_action != PM_QOS_REMOVE_REQ && !new_cpus) {
 		bool changed = false;
 
 		for_each_cpu(cpu, to_cpumask(&new_req_cpus)) {
@@ -508,11 +508,12 @@ EXPORT_SYMBOL_GPL(pm_qos_request_active);
 
 int pm_qos_request_for_cpumask(int pm_qos_class, struct cpumask *mask)
 {
+	unsigned long irqflags;
 	int cpu;
 	struct pm_qos_constraints *c = NULL;
 	int val;
 
-	spin_lock(&pm_qos_lock);
+	spin_lock_irqsave(&pm_qos_lock, irqflags);
 	c = pm_qos_array[pm_qos_class]->constraints;
 	val = c->default_value;
 
@@ -531,7 +532,7 @@ int pm_qos_request_for_cpumask(int pm_qos_class, struct cpumask *mask)
 			break;
 		}
 	}
-	spin_unlock(&pm_qos_lock);
+	spin_unlock_irqrestore(&pm_qos_lock, irqflags);
 
 	return val;
 }
@@ -603,14 +604,6 @@ static void pm_qos_irq_notify(struct irq_affinity_notify *notify,
  * removal.
  */
 
-#ifdef CONFIG_SMP
-static inline bool pm_qos_irq_has_affinity(struct irq_desc *desc)
-{
-	return desc && !irqd_is_per_cpu(&desc->irq_data) &&
-		desc->irq_data.chip && desc->irq_data.chip->irq_set_affinity;
-}
-#endif
-
 void pm_qos_add_request(struct pm_qos_request *req,
 			int pm_qos_class, s32 value)
 {
@@ -631,11 +624,13 @@ void pm_qos_add_request(struct pm_qos_request *req,
 		}
 		break;
 #ifdef CONFIG_SMP
-	case PM_QOS_REQ_AFFINE_IRQ: {
-		struct irq_desc *desc = irq_to_desc(req->irq);
-
-		if (pm_qos_irq_has_affinity(desc)) {
+	case PM_QOS_REQ_AFFINE_IRQ:
+		if (irq_can_set_affinity(req->irq)) {
+			struct irq_desc *desc = irq_to_desc(req->irq);
 			struct cpumask *mask;
+
+			if (!desc)
+				return;
 
 			/*
 			 * If the IRQ is not started, the effective affinity
@@ -659,7 +654,6 @@ void pm_qos_add_request(struct pm_qos_request *req,
 					req->irq);
 		}
 		break;
-	}
 #endif
 	default:
 		WARN(1, "Unknown request type %d\n", req->type);
@@ -676,7 +670,8 @@ void pm_qos_add_request(struct pm_qos_request *req,
 			     &req->node, PM_QOS_ADD_REQ, value, false);
 
 #ifdef CONFIG_SMP
-	if (req->type == PM_QOS_REQ_AFFINE_IRQ) {
+	if (req->type == PM_QOS_REQ_AFFINE_IRQ &&
+			irq_can_set_affinity(req->irq)) {
 		int ret = 0;
 
 		ret = irq_set_affinity_notifier(req->irq,
