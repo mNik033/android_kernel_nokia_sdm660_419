@@ -116,7 +116,9 @@ enum tick_dep_bits {
 #define TICK_DEP_MASK_RCU		(1 << TICK_DEP_BIT_RCU)
 #define TICK_DEP_MASK_RCU_EXP		(1 << TICK_DEP_BIT_RCU_EXP)
 
+#ifdef CONFIG_QCOM_RUN_QUEUE_STATS
 extern void register_tick_sched_wakeup_callback(void (*cb)(void));
+#endif
 
 #ifdef CONFIG_NO_HZ_COMMON
 extern bool tick_nohz_enabled;

@@ -29,7 +29,9 @@
 #include <linux/timer.h>
 #include <linux/context_tracking.h>
 #include <linux/mm.h>
+#ifdef CONFIG_QCOM_RUN_QUEUE_STATS
 #include <linux/rq_stats.h>
+#endif
 
 #include <asm/irq_regs.h>
 
@@ -37,9 +39,11 @@
 
 #include <trace/events/timer.h>
 
+#ifdef CONFIG_QCOM_RUN_QUEUE_STATS
 struct rq_data rq_info;
 struct workqueue_struct *rq_wq;
 spinlock_t rq_lock;
+#endif
 
 /*
  * Per-CPU nohz control structure
@@ -1282,6 +1286,7 @@ void tick_irq_enter(void)
  * High resolution timer specific code
  */
 #ifdef CONFIG_HIGH_RES_TIMERS
+#ifdef CONFIG_QCOM_RUN_QUEUE_STATS
 static void (*wake_callback)(void);
 
 void register_tick_sched_wakeup_callback(void (*cb)(void))
@@ -1292,6 +1297,7 @@ void register_tick_sched_wakeup_callback(void (*cb)(void))
 		pr_warn("tick-sched wake cb already exists; skipping.\n");
 }
 EXPORT_SYMBOL_GPL(register_tick_sched_wakeup_callback);
+#endif
 
 /*
  * We rearm the timer until we get disabled by the idle code.
@@ -1312,6 +1318,7 @@ static enum hrtimer_restart tick_sched_timer(struct hrtimer *timer)
 	 */
 	if (regs) {
 		tick_sched_handle(ts, regs);
+#ifdef CONFIG_QCOM_RUN_QUEUE_STATS
 		if (rq_info.init == 1 && wake_callback &&
 				tick_do_timer_cpu == smp_processor_id()) {
 			/*
@@ -1319,6 +1326,7 @@ static enum hrtimer_restart tick_sched_timer(struct hrtimer *timer)
 			 */
 			wake_callback();
 		}
+#endif
 	}
 	else
 		ts->next_tick = 0;
