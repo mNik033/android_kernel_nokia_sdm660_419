@@ -582,11 +582,15 @@ void arch_timer_enable_workaround(const struct arch_timer_erratum_workaround *wa
 
 	/*
 	 * Don't use the vdso fastpath if errata require using the
-	 * out-of-line counter accessor. We may change our mind pretty
-	 * late in the game (with a per-CPU erratum, for example), so
-	 * change both the default value and the vdso itself.
+	 * out-of-line counter accessor, unless the erratum is local to
+	 * a subset of CPUs and userspace CNTVCT access is enabled:
+	 * unaffected CPUs keep direct EL0 CNTVCT access while affected
+	 * CPUs leave EL0VCTEN cleared so EL0 reads trap into
+	 * cntvct_read_handler() / compat_cntvct_read_handler() and run
+	 * the workaround without syscall/seccomp/uaccess overhead.
 	 */
-	if (wa->read_cntvct_el0) {
+	if (wa->read_cntvct_el0 &&
+	    !(local && IS_ENABLED(CONFIG_ARM_ARCH_TIMER_VCT_ACCESS))) {
 		clocksource_counter.archdata.vdso_direct = false;
 		vdso_default = false;
 	}
