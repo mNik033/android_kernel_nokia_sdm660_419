@@ -55,4 +55,6 @@ config HZ
 	default 1000 if HZ_1000
 
 config SCHED_HRTICK
-	def_bool HIGH_RES_TIMERS
+	bool "High-resolution scheduler tick" if EXPERT
+	depends on HIGH_RES_TIMERS
+	default y
