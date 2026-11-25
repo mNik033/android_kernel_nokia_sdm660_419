@@ -8692,9 +8692,9 @@ static u64 cpu_uclamp_ls_read_u64(struct cgroup_subsys_state *css,
 
 #ifdef CONFIG_UCLAMP_ASSIST
 struct uclamp_param {
-	char *name;
-	char uclamp_min[3];
-	char uclamp_max[3];
+	const char *name;
+	char uclamp_min[4];
+	char uclamp_max[4];
 	u64  uclamp_latency_sensitive;
 };
 
@@ -8702,7 +8702,7 @@ static void uclamp_set(struct cgroup_subsys_state *css)
 {
 	int i;
 
-	static struct uclamp_param tgts[] = {
+	static const struct uclamp_param tgts[] = {
 		{"top-app",             "1", "max",  1},
 		{"foreground",          "0", "max",  0},
 		{"dex2oat",             "0",  "80",  0},
